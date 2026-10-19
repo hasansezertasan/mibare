@@ -289,6 +289,46 @@ def test_a_platform_specific_file_is_skipped_for_the_main_one() -> None:
     assert "a_windows.go" not in github.file_reads
 
 
+def test_a_cmd_directory_with_its_own_go_mod_uses_that_module_path() -> None:
+    """A nested module is installed by its own path, with no extra subpath."""
+    files = {
+        "go.mod": GO_MOD,
+        "cmd/tool/go.mod": "module example.com/other/tool\n\ngo 1.22\n",
+        "cmd/tool/main.go": MAIN,
+        "cmd/plain/main.go": MAIN,
+    }
+
+    resolution = _go(files)
+
+    assert _backends(resolution) == [
+        "go:example.com/other/tool",
+        "go:github.com/owner/tool/cmd/plain",
+    ]
+    nested = resolution.candidates[0]
+    assert any("own module" in reason for reason in nested.reasons)
+
+
+def test_a_nested_go_mod_without_a_module_line_is_skipped() -> None:
+    """Without a readable module path the nested entrypoint cannot be named."""
+    files = {"go.mod": GO_MOD, "cmd/tool/go.mod": "go 1.22\n", "cmd/tool/main.go": MAIN}
+
+    assert _go(files).candidates == ()
+
+
+def test_a_nested_go_mod_cannot_be_read_once_the_budget_is_spent() -> None:
+    """When no read is left to check for a module boundary, the entrypoint waits."""
+    files = {"go.mod": GO_MOD}
+    files.update({f"cmd/a{i:02}/main.go": LIB for i in range(MAX_FILE_READS - 3)})
+    files["cmd/n/go.mod"] = "module example.com/n\n"
+    files["cmd/n/main.go"] = MAIN
+    files["cmd/o/main.go"] = MAIN
+
+    resolution = _go(files)
+
+    assert _backends(resolution) == ["go:github.com/owner/tool/cmd/o"]
+    assert any("Go search was limited" in note for note in resolution.notes)
+
+
 def test_go_is_favoured_by_go_language() -> None:
     """The Go primary language puts ``go:`` ahead of ``pypi:``."""
     files = {

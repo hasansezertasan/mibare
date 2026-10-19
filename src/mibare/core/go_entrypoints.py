@@ -2,7 +2,11 @@
 
 A Go repository installs with ``go:<module path>``, plus ``/cmd/<name>`` for an
 entrypoint that lives in a subdirectory, so one candidate is offered per
-entrypoint.
+entrypoint. A ``cmd/<name>`` directory with its own ``go.mod`` is a separate
+module, so its declared module path is the whole backend string.
+
+Only files built for the target platform count (see
+:mod:`mibare.core.go_constraints`).
 
 Reading is bounded to spare GitHub's rate limit (60 REST requests an hour
 without a token). The whole repository is listed with one request, which finds
@@ -157,14 +161,46 @@ def _find_mains(
     return found
 
 
-def _module_path(go_mod: str, repository: Repository) -> str:
-    """Return the module path from ``go.mod``, else the GitHub path.
+def _declared_module(go_mod: str) -> str | None:
+    """Return the module path a ``go.mod`` declares.
 
     Returns:
-        str: The module path.
+        str | None: The path, or ``None`` without a ``module`` line.
     """
     match = _MODULE.search(_COMMENTS.sub("", go_mod))
-    return match.group(1) if match else f"github.com/{repository.shorthand}"
+    return match.group(1) if match else None
+
+
+def _entrypoint(
+    reader: _Reader, directory: str, paths: tuple[str, ...], root: tuple[str, str]
+) -> tuple[str, str] | None:
+    """Name the backend string and reason for the ``package main`` in ``directory``.
+
+    A command with its own ``go.mod`` crosses a module boundary: the root
+    module path plus the subpath would name a package that does not exist, so
+    that module's declared path is the whole backend string.
+
+    Args:
+        reader: The shared read budget.
+        directory: ``""`` for the root, else ``cmd/<name>``.
+        paths: Every file path in the repository.
+        root: The root module path and the reason suffix that qualifies it.
+
+    Returns:
+        tuple[str, str] | None: The backend string and the reason, or ``None``
+            when the nested module cannot be read or declares no path.
+    """
+    module, suffix = root
+    nested = f"{directory}/go.mod"
+    if directory and nested in paths:
+        go_mod = reader.read(nested)
+        declared = None if go_mod is None else _declared_module(go_mod)
+        if declared is None:
+            return None
+        return f"go:{declared}", f"{directory} declares package main in its own module"
+    subpath = f"/{directory}" if directory else ""
+    where = directory or "the root"
+    return f"go:{module}{subpath}", f"{where} declares package main{suffix}"
 
 
 def detect_go(
@@ -183,21 +219,27 @@ def detect_go(
     reader = _Reader(repository, github)
     if listing.truncated:
         reader.limit("GitHub truncated the repository file listing")
-    has_go_mod = "go.mod" in listing.paths or listing.truncated
-    go_mod = reader.read("go.mod") if has_go_mod else None
+    go_mod = (
+        reader.read("go.mod")
+        if "go.mod" in listing.paths or listing.truncated
+        else None
+    )
     fallback = f"github.com/{repository.shorthand}"
-    module = fallback if go_mod is None else _module_path(go_mod, repository)
-    directories = _go_directories(listing.paths, platform)
-    mains = _find_mains(reader, directories, platform)
-    note = " (no go.mod in the repository root; assumed " + fallback + ")"
-    found = [
-        Detection(
-            f"go:{module}{'/' + directory if directory else ''}",
-            f"{directory or 'the root'} declares package main"
-            f"{note if go_mod is None else ''}",
-            notes=reader.note,
-        )
+    declared = None if go_mod is None else _declared_module(go_mod)
+    module = fallback if declared is None else declared
+    suffix = (
+        ""
+        if go_mod is not None
+        else f" (no go.mod in the repository root; assumed {fallback})"
+    )
+    mains = _find_mains(reader, _go_directories(listing.paths, platform), platform)
+    entrypoints = (
+        _entrypoint(reader, directory, listing.paths, (module, suffix))
         for directory in sorted(mains, key=lambda d: (bool(d), d))
+    )
+    found = [
+        Detection(backend, reason, notes=reader.note)
+        for backend, reason in filter(None, entrypoints)
     ]
     if found:
         return found
