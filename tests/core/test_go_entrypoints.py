@@ -329,6 +329,18 @@ def test_a_nested_go_mod_cannot_be_read_once_the_budget_is_spent() -> None:
     assert any("Go search was limited" in note for note in resolution.notes)
 
 
+def test_go_files_outside_the_root_and_cmd_children_are_ignored() -> None:
+    """Only the root and ``cmd/<name>`` directories are searched."""
+    files = {
+        "go.mod": GO_MOD,
+        "internal/tool/main.go": MAIN,
+        "cmd/a/sub/main.go": MAIN,
+        "tools/gen/main.go": MAIN,
+    }
+
+    assert _go(files).candidates == ()
+
+
 def test_go_is_favoured_by_go_language() -> None:
     """The Go primary language puts ``go:`` ahead of ``pypi:``."""
     files = {

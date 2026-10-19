@@ -91,6 +91,9 @@ def test_build_constraints_are_evaluated_for_the_platform(
         "//go:build linux amd64\npackage main\n",
         "//go:build linux )\npackage main\n",
         "//go:build @\npackage main\n",
+        "//go:build (linux amd64)\npackage main\n",
+        "//go:build && linux\npackage main\n",
+        "// only a comment\n",
     ],
 )
 def test_a_missing_or_unparsable_constraint_includes_the_file(source: str) -> None:
