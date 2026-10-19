@@ -8,6 +8,7 @@ tie-break and the reasons.
 
 from __future__ import annotations
 
+import json
 import sys
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Protocol, cast
@@ -26,7 +27,16 @@ if TYPE_CHECKING:
     from mibare.core.github import GitHub
     from mibare.core.repository import Repository
 
-__all__ = ["ECOSYSTEMS", "GO", "PYPI", "Detection", "Detector", "Ecosystem"]
+__all__ = [
+    "CARGO",
+    "ECOSYSTEMS",
+    "GO",
+    "NPM",
+    "PYPI",
+    "Detection",
+    "Detector",
+    "Ecosystem",
+]
 
 
 class Detector(Protocol):
@@ -100,8 +110,60 @@ def _detect_python(repository: Repository, github: GitHub) -> Detection:
     )
 
 
+def _detect_cargo(repository: Repository, github: GitHub) -> Detection:
+    """Look for a ``[[bin]]`` table or a ``src/main.rs`` beside ``Cargo.toml``.
+
+    Returns:
+        Detection: ``found`` when the crate has a bin target.
+    """
+    backend_string = f"cargo:{repository.shorthand}"
+    text = github.root_file(repository, "Cargo.toml")
+    if text is None:
+        reason = "no Cargo.toml in the repository root"
+        return Detection(backend_string, reason, found=False)
+    try:
+        data = tomllib.loads(text)
+    except tomllib.TOMLDecodeError:
+        reason = "Cargo.toml in the repository root is not valid TOML"
+        return Detection(backend_string, reason, found=False)
+    bins = data.get("bin")
+    if isinstance(bins, list) and bins:
+        return Detection(backend_string, "Cargo.toml declares a [[bin]] target")
+    if github.root_file(repository, "src/main.rs") is not None:
+        return Detection(backend_string, "the crate has a src/main.rs bin target")
+    reason = "Cargo.toml declares no [[bin]] target and there is no src/main.rs"
+    return Detection(backend_string, reason, found=False)
+
+
+def _detect_npm(repository: Repository, github: GitHub) -> Detection:
+    """Look for a non-empty ``bin`` in the root ``package.json``.
+
+    Returns:
+        Detection: ``found`` when ``bin`` is a non-empty string or object.
+    """
+    backend_string = f"npm:github:{repository.shorthand}"
+    text = github.root_file(repository, "package.json")
+    if text is None:
+        reason = "no package.json in the repository root"
+        return Detection(backend_string, reason, found=False)
+    try:
+        data = cast("object", json.loads(text))
+    except ValueError:
+        reason = "package.json in the repository root is not valid JSON"
+        return Detection(backend_string, reason, found=False)
+    bin_field = (
+        cast("dict[str, object]", data).get("bin") if isinstance(data, dict) else None
+    )
+    if isinstance(bin_field, (str, dict)) and bin_field:
+        return Detection(backend_string, "package.json declares a bin entrypoint")
+    reason = "package.json declares no bin entrypoint"
+    return Detection(backend_string, reason, found=False)
+
+
 PYPI = Ecosystem("pypi", frozenset({"Python"}), _detect_python)
+CARGO = Ecosystem("cargo", frozenset({"Rust"}), _detect_cargo)
+NPM = Ecosystem("npm", frozenset({"JavaScript", "TypeScript"}), _detect_npm)
 GO = Ecosystem("go", frozenset({"Go"}), detect_go)
 
 #: The registered ecosystems. Add a line here to support another one.
-ECOSYSTEMS: tuple[Ecosystem, ...] = (PYPI, GO)
+ECOSYSTEMS: tuple[Ecosystem, ...] = (PYPI, CARGO, NPM, GO)

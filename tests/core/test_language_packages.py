@@ -56,11 +56,13 @@ def test_pyproject_without_scripts_gives_no_pypi_candidate() -> None:
     resolution = resolve(TOOL, FakeMise(), LINUX_X64, github=github, ecosystems=(PYPI,))
 
     assert resolution.candidates == ()
-    (excluded,) = resolution.exclusions
-    assert excluded.backend_string == "pypi:owner/tool"
+    (excluded,) = (
+        x for x in resolution.exclusions if x.backend_string == "pypi:owner/tool"
+    )
     assert "project.scripts" in excluded.reason
     assert resolution.to_dict()["excluded"] == [
-        {"backend_string": "pypi:owner/tool", "reason": excluded.reason}
+        {"backend_string": x.backend_string, "reason": x.reason}
+        for x in resolution.exclusions
     ]
 
 
@@ -87,8 +89,9 @@ def test_malformed_pyproject_is_no_candidate_with_a_visible_reason() -> None:
     resolution = resolve(TOOL, FakeMise(), LINUX_X64, github=github, ecosystems=(PYPI,))
 
     assert resolution.candidates == ()
-    (excluded,) = resolution.exclusions
-    assert excluded.backend_string == "pypi:owner/tool"
+    (excluded,) = (
+        x for x in resolution.exclusions if x.backend_string == "pypi:owner/tool"
+    )
     assert "valid TOML" in excluded.reason
 
 

@@ -102,6 +102,17 @@ def test_root_file_is_none_when_absent_or_a_directory() -> None:
     assert api.root_file(REPO, "cmd") is None
 
 
+def test_root_file_accepts_a_repo_relative_path() -> None:
+    """A nested path such as ``src/main.rs`` is read the same way."""
+    encoded = base64.encodebytes(b"fn main() {}").decode()
+    body = {"type": "file", "encoding": "base64", "content": encoded}
+    path = "/repos/BurntSushi/ripgrep/contents/src/main.rs"
+    transport = FakeTransport({path: (200, body)})
+
+    api = GitHubApi(transport, token=None)
+    assert api.root_file(REPO, "src/main.rs") == "fn main() {}"
+
+
 def test_token_is_sent_when_given() -> None:
     """An explicit token becomes a bearer Authorization header."""
     transport = FakeTransport()

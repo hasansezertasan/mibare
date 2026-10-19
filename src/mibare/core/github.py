@@ -151,11 +151,12 @@ class GitHubApi:
         return language if isinstance(language, str) else None
 
     def root_file(self, repository: Repository, name: str) -> str | None:
-        """Return the text of a file in the repository root.
+        """Return the text of a file in the repository.
 
         Args:
             repository: The repository to look up.
-            name: The file name, such as ``pyproject.toml``.
+            name: The repo-relative path, such as ``pyproject.toml`` or
+                ``src/main.rs``.
 
         Returns:
             str | None: The decoded contents, or ``None`` when the file is
