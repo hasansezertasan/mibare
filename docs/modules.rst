@@ -27,13 +27,6 @@ Always-included infrastructure.
 
 .. automodule:: mibare.core.logging_setup
 
-Utilities (``mibare.utils``)
-------------------------------
-
-Shared helper functions.
-
-.. automodule:: mibare.utils
-
 CLI (``mibare.cli``)
 ------------------------------
 

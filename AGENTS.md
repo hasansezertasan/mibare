@@ -37,13 +37,12 @@ New feature code goes inside an existing layer:
 | Business logic, domain models, app behavior | `core/` |
 | External integrations (APIs, storage, brokers) | `core/` |
 | Config / settings | `core/config.py` |
-| Dependency-free helpers (no internal imports) | `utils/` |
 | CLI command or subcommand | `cli/app.py` |
 
 The layering is enforced in CI by import-linter (`[tool.importlinter]` in
 `pyproject.toml`), whose contract is **exhaustive**: a subpackage not listed in
-its `layers` fails `tox run -e style`. `core` may import `utils`; `utils` imports
-nothing internal.
+its `layers` fails `tox run -e style`. `cli` may import `core`; `core` imports
+nothing from `cli`.
 `core/resolve.py` holds `resolve()`; the CLI is a thin adapter over it and
 decides only how to present the result and which exit code to use. External
 programs and services sit behind an adapter interface in `core/` (today

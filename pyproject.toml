@@ -349,8 +349,7 @@ type = "layers"
 # may not import each other. `cli` is the orchestrator layer — the
 # `mibare` console root, whose subcommands launch the other
 # components (web/gui/tui/mcp/worker) via lazy imports — so it sits ABOVE the
-# independent component group, which sits above `core`, which sits above the leaf
-# `utils`.
+# independent component group, which sits above `core`.
 #
 # `exhaustive` makes the contract fail when a subpackage of
 # `mibare` is not named in `layers` — so a new top-level
@@ -369,7 +368,6 @@ exhaustive_ignores = [
 layers = [
   "cli",
   "core",
-  "utils",
 ]
 
 
