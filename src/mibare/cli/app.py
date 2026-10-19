@@ -14,6 +14,7 @@ import typer
 
 from mibare.core.errors import MibareError
 from mibare.core.mise import SubprocessMise
+from mibare.core.platform import Platform
 from mibare.core.resolve import Resolution, resolve
 
 __all__ = ["app", "main"]
@@ -55,6 +56,9 @@ def _render(resolution: Resolution) -> str:
         marker = "*" if index == 0 else " "
         suffix = "  (recommended)" if index == 0 else ""
         lines.append(f"{marker} {candidate.backend_string}{suffix}")
+        if candidate.warning:
+            lines.append(f"    warning: {candidate.warning}")
+    lines.extend(f"note: {note}" for note in resolution.notes)
     return "\n".join(lines)
 
 
@@ -63,6 +67,12 @@ def main(
     repository: Annotated[
         str, typer.Argument(help="A GitHub URL or owner/repo shorthand.")
     ],
+    platform: Annotated[
+        str | None,
+        typer.Option(
+            help="Target platform as os-arch, such as linux-x64; defaults to the host."
+        ),
+    ] = None,
 ) -> None:
     """Recommend which mise backend to install a GitHub repository with.
 
@@ -77,7 +87,8 @@ def main(
         typer.Exit: Always, with the exit code describing the outcome.
     """
     try:
-        resolution = resolve(repository, SubprocessMise())
+        target = Platform.parse(platform) if platform is not None else None
+        resolution = resolve(repository, SubprocessMise(), target)
     except MibareError as error:
         typer.echo(f"Error: {error}", err=True)
         raise typer.Exit(code=EXIT_ERROR) from None

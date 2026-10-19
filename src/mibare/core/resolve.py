@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
+from mibare.core.platform import Platform, host_platform
 from mibare.core.repository import Repository, parse_repository
 
 if TYPE_CHECKING:
@@ -17,15 +18,34 @@ _OWNER_REPO_BACKENDS = frozenset({"aqua", "github", "ubi", "asdf", "vfox"})
 _HOST_PREFIX = "github.com/"
 
 
+#: Positions on mise's documented preference ladder, best first.
+_TIERS = (
+    frozenset({"packslip"}),
+    frozenset({"aqua", "github", "gitlab", "forgejo"}),
+    frozenset({"http", "s3"}),
+    frozenset({"cargo", "go", "npm", "pypi", "pipx", "gem", "dotnet", "spm", "conda"}),
+)
+_LOWEST_TIER = len(_TIERS) + 1  # plugins and anything unknown
+_LEGACY_BACKENDS = frozenset({"asdf", "vfox", "ubi"})
+_LEGACY_WARNING = "{} is a legacy backend that mise discourages; prefer another."
+
+
 @dataclass(frozen=True)
 class Candidate:
     """A backend string that could install the tool for a repository.
 
     Attributes:
         backend_string: The backend and tool identifier, as in ``aqua:owner/repo``.
+        tier: Position on mise's preference ladder, 1 (packslip) to 5 (plugins);
+            lower is better. Defaults to the lowest.
+        legacy: Whether the backend is a legacy backend (asdf, vfox, ubi).
+        warning: Why the candidate is discouraged, or ``None``.
     """
 
     backend_string: str
+    tier: int = _LOWEST_TIER
+    legacy: bool = False
+    warning: str | None = None
 
 
 @dataclass(frozen=True)
@@ -36,11 +56,15 @@ class Resolution:
         repository: The repository that was resolved.
         mise_version: The mise version whose registry the answer came from.
         candidates: The candidates, best first.
+        platform: The target platform the candidates are for.
+        notes: Remarks for the user, such as a target that differs from the host.
     """
 
     repository: Repository
     mise_version: str
     candidates: tuple[Candidate, ...]
+    platform: Platform | None = None
+    notes: tuple[str, ...] = ()
 
     @property
     def recommendation(self) -> Candidate | None:
@@ -83,20 +107,61 @@ def _points_at(repository: Repository, backend_string: str) -> bool:
     )
 
 
-def resolve(repository: str, mise: Mise) -> Resolution:
+def _candidate(backend_string: str) -> Candidate:
+    """Build a candidate, placing it on the tier ladder and flagging legacy.
+
+    Returns:
+        Candidate: The candidate for ``backend_string``.
+    """
+    backend = backend_string.partition(":")[0]
+    tier = next(
+        (rank for rank, tier in enumerate(_TIERS, 1) if backend in tier), _LOWEST_TIER
+    )
+    legacy = backend in _LEGACY_BACKENDS
+    warning = _LEGACY_WARNING.format(backend) if legacy else None
+    return Candidate(backend_string, tier, legacy, warning)
+
+
+def _usable_on(candidate: Candidate, platform: Platform) -> bool:
+    """Whether the candidate's backend can run on ``platform``.
+
+    Returns:
+        bool: ``False`` for asdf on Windows, ``True`` otherwise.
+    """
+    is_asdf = candidate.backend_string.startswith("asdf:")
+    return not (platform.os == "windows" and is_asdf)
+
+
+def resolve(
+    repository: str, mise: Mise, platform: Platform | None = None
+) -> Resolution:
     """Resolve ``repository`` to the mise backends that can install it.
 
     Args:
         repository: A GitHub URL or ``owner/repo`` shorthand.
         mise: The mise adapter.
+        platform: The target platform; defaults to the host.
 
     Returns:
         Resolution: The ranked candidates; the first is the recommendation.
     """
     parsed = parse_repository(repository)
+    host = host_platform()
+    target = platform or host
+    notes: tuple[str, ...] = ()
+    if target != host:
+        note = (
+            f"Target platform {target.label} differs from the host {host.label}; "
+            "registry data still reflects the host."
+        )
+        notes = (note,)
     mise_version = mise.version()
+    candidates: tuple[Candidate, ...] = ()
     for entry in mise.registry():
         if any(_points_at(parsed, backend) for backend in entry.backends):
-            candidates = tuple(Candidate(b) for b in entry.backends)
-            return Resolution(parsed, mise_version, candidates)
-    return Resolution(parsed, mise_version, ())
+            ranked = sorted(
+                (_candidate(b) for b in entry.backends), key=lambda c: c.tier
+            )
+            candidates = tuple(c for c in ranked if _usable_on(c, target))
+            break
+    return Resolution(parsed, mise_version, candidates, target, notes)

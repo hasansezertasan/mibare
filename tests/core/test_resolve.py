@@ -4,15 +4,19 @@ from __future__ import annotations
 
 import pytest
 
+import mibare.core.resolve as resolve_module
 from mibare.core.errors import (
+    InvalidPlatformError,
     InvalidRepositoryError,
     MiseError,
     MiseNotFoundError,
     MiseTooOldError,
 )
-from mibare.core.resolve import resolve
+from mibare.core.platform import Platform
+from mibare.core.resolve import Resolution, resolve
 from tests.fakes import FakeMise, entry
 
+HOST = Platform("macos", "arm64")
 RIPGREP = entry("ripgrep", "aqua:BurntSushi/ripgrep", "ubi:BurntSushi/ripgrep")
 
 
@@ -186,3 +190,219 @@ def test_registry_entries_for_other_repositories_are_ignored(backend: str) -> No
     resolution = resolve("BurntSushi/ripgrep", FakeMise([entry("rg", backend)]))
 
     assert resolution.candidates == ()
+
+
+def _backends(resolution: Resolution) -> list[str]:
+    """List the backend strings of ``resolution`` in ranked order."""
+    return [c.backend_string for c in resolution.candidates]
+
+
+def test_a_higher_tier_backend_outranks_a_legacy_one_listed_first() -> None:
+    """Candidates follow mise's tier ladder, not the registry's order.
+
+    Given:
+        - A registry entry listing asdf, ubi, cargo, github and aqua in that order.
+    When:
+        - The repository is resolved.
+    Then:
+        - aqua and github lead, then the language package, then asdf and ubi.
+    """
+    registry = entry(
+        "eza",
+        "asdf:eza-community/eza",
+        "ubi:eza-community/eza",
+        "cargo:github.com/eza-community/eza",
+        "github:eza-community/eza",
+        "aqua:eza-community/eza",
+    )
+
+    resolution = resolve("eza-community/eza", FakeMise([registry]))
+
+    assert _backends(resolution) == [
+        "github:eza-community/eza",
+        "aqua:eza-community/eza",
+        "cargo:github.com/eza-community/eza",
+        "asdf:eza-community/eza",
+        "ubi:eza-community/eza",
+    ]
+    assert resolution.recommendation is resolution.candidates[0]
+
+
+def test_candidates_carry_their_tier() -> None:
+    """Each candidate reports its position on the ladder.
+
+    Given:
+        - Packslip, aqua, http, go and vfox backends for one repository.
+    When:
+        - The repository is resolved.
+    Then:
+        - The tiers are 1 to 5 in that order.
+    """
+    registry = entry(
+        "tool",
+        "vfox:o/r",
+        "go:github.com/o/r",
+        "http:o/r",
+        "aqua:o/r",
+        "packslip:github.com/o/r",
+    )
+
+    resolution = resolve("o/r", FakeMise([registry]))
+
+    assert [c.tier for c in resolution.candidates] == [1, 2, 3, 4, 5]
+
+
+@pytest.mark.parametrize("backend", ["asdf", "vfox", "ubi"])
+def test_legacy_backends_are_flagged_with_a_warning(backend: str) -> None:
+    """asdf, vfox and ubi candidates are marked legacy and say why.
+
+    Given:
+        - A registry entry with an aqua backend and a legacy backend.
+    When:
+        - The repository is resolved.
+    Then:
+        - Only the legacy candidate is flagged, and it carries a warning.
+    """
+    registry = entry("tool", "aqua:o/r", f"{backend}:o/r")
+
+    modern, legacy = resolve("o/r", FakeMise([registry])).candidates
+
+    assert (modern.legacy, modern.warning) == (False, None)
+    assert legacy.legacy
+    assert legacy.warning is not None
+    assert backend in legacy.warning
+
+
+def test_ranking_is_deterministic() -> None:
+    """The same input always yields the same order.
+
+    Given:
+        - A registry entry with several backends in one tier.
+    When:
+        - The repository is resolved twice.
+    Then:
+        - The order is identical and keeps the registry's order within the tier.
+    """
+    registry = entry("t", "npm:github:o/r", "cargo:github.com/o/r", "aqua:o/r")
+
+    first = _backends(resolve("o/r", FakeMise([registry])))
+    second = _backends(resolve("o/r", FakeMise([registry])))
+
+    assert first == second == ["aqua:o/r", "npm:github:o/r", "cargo:github.com/o/r"]
+
+
+def test_asdf_is_excluded_for_a_windows_target() -> None:
+    """The asdf backend cannot run on Windows, so it is never offered there.
+
+    Given:
+        - A registry entry with aqua, asdf and vfox backends.
+    When:
+        - The repository is resolved for ``windows-x64``.
+    Then:
+        - asdf is gone and the others remain.
+    """
+    registry = entry("tool", "aqua:o/r", "asdf:o/r", "vfox:o/r")
+
+    resolution = resolve("o/r", FakeMise([registry]), Platform("windows", "x64"))
+
+    assert _backends(resolution) == ["aqua:o/r", "vfox:o/r"]
+
+
+def test_asdf_is_kept_for_a_non_windows_target() -> None:
+    """The asdf backend stays a (legacy) candidate on Linux.
+
+    Given:
+        - A registry entry with aqua and asdf backends.
+    When:
+        - The repository is resolved for ``linux-arm64``.
+    Then:
+        - Both remain.
+    """
+    registry = entry("tool", "aqua:o/r", "asdf:o/r")
+
+    resolution = resolve("o/r", FakeMise([registry]), Platform("linux", "arm64"))
+
+    assert _backends(resolution) == ["aqua:o/r", "asdf:o/r"]
+
+
+def test_the_target_defaults_to_the_host(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Without a platform the host is the target and no note is added.
+
+    Given:
+        - A host that is Windows.
+    When:
+        - A repository is resolved without a platform.
+    Then:
+        - The target is the host, asdf is excluded, and there are no notes.
+    """
+    windows = Platform("windows", "arm64")
+    monkeypatch.setattr(resolve_module, "host_platform", lambda: windows)
+    registry = entry("tool", "aqua:o/r", "asdf:o/r")
+
+    resolution = resolve("o/r", FakeMise([registry]))
+
+    assert resolution.platform == windows
+    assert _backends(resolution) == ["aqua:o/r"]
+    assert resolution.notes == ()
+
+
+def test_a_target_that_differs_from_the_host_is_noted(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The output says when registry data reflects another platform.
+
+    Given:
+        - A macOS host and a ``windows-x64`` target.
+    When:
+        - A repository is resolved.
+    Then:
+        - A note names both platforms and says the registry reflects the host.
+    """
+    monkeypatch.setattr(resolve_module, "host_platform", lambda: HOST)
+
+    resolution = resolve("o/r", FakeMise(), Platform("windows", "x64"))
+
+    (note,) = resolution.notes
+    assert "windows-x64" in note
+    assert "macos-arm64" in note
+    assert "registry" in note
+
+
+def test_a_target_equal_to_the_host_adds_no_note(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Naming the host platform explicitly changes nothing.
+
+    Given:
+        - A target equal to the host.
+    When:
+        - A repository is resolved.
+    Then:
+        - There are no notes.
+    """
+    monkeypatch.setattr(resolve_module, "host_platform", lambda: HOST)
+
+    assert resolve("o/r", FakeMise(), HOST).notes == ()
+
+
+@pytest.mark.parametrize(
+    ("text", "expected"),
+    [
+        ("linux-x64", Platform("linux", "x64")),
+        ("macos-arm64", Platform("macos", "arm64")),
+        ("WINDOWS-X64", Platform("windows", "x64")),
+    ],
+)
+def test_platform_parses_os_arch(text: str, expected: Platform) -> None:
+    """``os-arch`` text becomes a platform, ignoring case."""
+    assert Platform.parse(text) == expected
+    assert expected.label == text.lower()
+
+
+@pytest.mark.parametrize(
+    "text", ["", "linux", "linux-", "-x64", "plan9-x64", "linux-mips", "linux-x64-x"]
+)
+def test_platform_rejects_anything_but_a_known_os_arch(text: str) -> None:
+    """An unknown OS, an unknown arch or the wrong shape is an error."""
+    with pytest.raises(InvalidPlatformError, match="os-arch"):
+        Platform.parse(text)

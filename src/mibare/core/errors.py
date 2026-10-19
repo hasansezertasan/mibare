@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 __all__ = [
+    "InvalidPlatformError",
     "InvalidRepositoryError",
     "MibareError",
     "MiseError",
@@ -17,6 +18,10 @@ class MibareError(Exception):
 
 class InvalidRepositoryError(MibareError):
     """The input is not a GitHub URL or ``owner/repo`` shorthand."""
+
+
+class InvalidPlatformError(MibareError):
+    """The platform is not a known ``os-arch`` pair."""
 
 
 class MiseError(MibareError):

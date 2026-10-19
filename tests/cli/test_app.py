@@ -14,6 +14,7 @@ from mibare.core.errors import (
     MiseNotFoundError,
     MiseTooOldError,
 )
+from mibare.core.platform import Platform
 from mibare.core.repository import Repository
 from mibare.core.resolve import Candidate, Resolution
 
@@ -38,8 +39,10 @@ def runner() -> CliRunner:
 def _resolving(*backends: str) -> Callable[..., Resolution]:
     """Build a stand-in for ``resolve()`` that finds ``backends``."""
 
-    def fake(repository: str, mise: object) -> Resolution:
-        del repository, mise
+    def fake(
+        repository: str, mise: object, platform: Platform | None = None
+    ) -> Resolution:
+        del repository, mise, platform
         return Resolution(
             REPOSITORY, "2026.10.13", tuple(Candidate(b) for b in backends)
         )
@@ -47,11 +50,13 @@ def _resolving(*backends: str) -> Callable[..., Resolution]:
     return fake
 
 
-def _failing(error: MibareError) -> Callable[..., Resolution]:
+def _failing(error: Exception) -> Callable[..., Resolution]:
     """Build a stand-in for ``resolve()`` that raises ``error``."""
 
-    def fake(repository: str, mise: object) -> Resolution:
-        del repository, mise
+    def fake(
+        repository: str, mise: object, platform: Platform | None = None
+    ) -> Resolution:
+        del repository, mise, platform
         raise error
 
     return fake
@@ -102,8 +107,10 @@ def test_the_repository_argument_reaches_resolve(
     """
     asked: list[str] = []
 
-    def spy(repository: str, mise: object) -> Resolution:
-        del mise
+    def spy(
+        repository: str, mise: object, platform: Platform | None = None
+    ) -> Resolution:
+        del mise, platform
         asked.append(repository)
         return Resolution(REPOSITORY, "2026.10.13", ())
 
@@ -221,3 +228,105 @@ def test_there_are_no_subcommands(runner: CliRunner, command: str) -> None:
     result: Result = runner.invoke(cli.app, [command])
 
     assert result.exit_code == 2
+
+
+def test_platform_reaches_resolve_as_a_platform(
+    runner: CliRunner, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """``--platform os-arch`` is parsed and handed to ``resolve()``.
+
+    Given:
+        - A ``resolve()`` that records the platform it is asked for.
+    When:
+        - ``mibare --platform windows-x64`` runs.
+    Then:
+        - ``resolve()`` receives ``Platform("windows", "x64")``.
+    """
+    asked: list[Platform | None] = []
+
+    def spy(
+        repository: str, mise: object, platform: Platform | None = None
+    ) -> Resolution:
+        del repository, mise
+        asked.append(platform)
+        return Resolution(REPOSITORY, "2026.10.13", ())
+
+    monkeypatch.setattr(cli, "resolve", spy)
+
+    _ = runner.invoke(cli.app, ["--platform", "windows-x64", "BurntSushi/ripgrep"])
+
+    assert asked == [Platform("windows", "x64")]
+
+
+def test_without_platform_resolve_uses_the_host_default(
+    runner: CliRunner, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """No ``--platform`` leaves the choice to ``resolve()``'s host default."""
+    asked: list[Platform | None] = []
+
+    def spy(
+        repository: str, mise: object, platform: Platform | None = None
+    ) -> Resolution:
+        del repository, mise
+        asked.append(platform)
+        return Resolution(REPOSITORY, "2026.10.13", ())
+
+    monkeypatch.setattr(cli, "resolve", spy)
+
+    _ = runner.invoke(cli.app, ["BurntSushi/ripgrep"])
+
+    assert asked == [None]
+
+
+@pytest.mark.parametrize("value", ["windows", "plan9-x64", "linux-mips", ""])
+def test_an_invalid_platform_exits_2_with_a_clear_message(
+    runner: CliRunner, monkeypatch: pytest.MonkeyPatch, value: str
+) -> None:
+    """A bad ``--platform`` is an error before anything resolves.
+
+    Given:
+        - A ``resolve()`` that must not be called.
+    When:
+        - ``mibare --platform <value>`` runs.
+    Then:
+        - It exits 2 and explains the expected ``os-arch`` form.
+    """
+    monkeypatch.setattr(cli, "resolve", _failing(AssertionError("must not run")))
+
+    result: Result = runner.invoke(cli.app, ["--platform", value, "BurntSushi/ripgrep"])
+
+    assert result.exit_code == 2
+    assert "os-arch" in result.output
+    assert "Traceback" not in result.output
+
+
+def test_warnings_and_notes_are_shown(
+    runner: CliRunner, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Legacy warnings and platform notes reach the terminal.
+
+    Given:
+        - A resolution with a legacy candidate and a platform note.
+    When:
+        - ``mibare`` runs.
+    Then:
+        - Both texts appear in the output.
+    """
+
+    def fake(
+        repository: str, mise: object, platform: Platform | None = None
+    ) -> Resolution:
+        del repository, mise, platform
+        candidate = Candidate(
+            "ubi:BurntSushi/ripgrep", tier=5, legacy=True, warning="ubi is legacy."
+        )
+        return Resolution(
+            REPOSITORY, "2026.10.13", (candidate,), notes=("Target differs.",)
+        )
+
+    monkeypatch.setattr(cli, "resolve", fake)
+
+    result: Result = runner.invoke(cli.app, ["BurntSushi/ripgrep"])
+
+    assert "ubi is legacy." in result.output
+    assert "Target differs." in result.output
