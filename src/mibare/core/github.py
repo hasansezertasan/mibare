@@ -20,7 +20,6 @@ from mibare.core.errors import GitHubUnavailableError
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
-    from http.client import HTTPResponse
 
     from mibare.core.repository import Repository
 
@@ -73,6 +72,35 @@ class GitHub(Protocol):
         raise NotImplementedError
 
 
+class _Reply(Protocol):
+    """The parts of an HTTP reply that the transport reads."""
+
+    status: int
+
+    def read(self) -> bytes:
+        """Return the reply body."""
+        raise NotImplementedError
+
+    def close(self) -> None:
+        """Release the connection."""
+        raise NotImplementedError
+
+
+def _read_reply(reply: _Reply) -> HttpResponse:
+    """Read an open reply into an :class:`HttpResponse`, closing it.
+
+    Args:
+        reply: The open reply.
+
+    Returns:
+        HttpResponse: The status and body.
+    """
+    try:
+        return HttpResponse(reply.status, reply.read())
+    finally:
+        reply.close()
+
+
 def urllib_transport(url: str, headers: Mapping[str, str]) -> HttpResponse:
     """Fetch ``url`` with :mod:`urllib`, returning error statuses as responses.
 
@@ -85,12 +113,9 @@ def urllib_transport(url: str, headers: Mapping[str, str]) -> HttpResponse:
     """
     request = urllib.request.Request(url, headers=dict(headers))  # noqa: S310
     try:
-        opened = cast(
-            "HTTPResponse",
-            urllib.request.urlopen(request, timeout=_TIMEOUT_SECONDS),  # noqa: S310  # pylint: disable=consider-using-with
+        return _read_reply(
+            cast("_Reply", urllib.request.urlopen(request, timeout=_TIMEOUT_SECONDS))  # noqa: S310  # pylint: disable=consider-using-with
         )
-        with opened as reply:
-            return HttpResponse(reply.status, reply.read())
     except urllib.error.HTTPError as error:
         return HttpResponse(error.code, error.read())
 

@@ -6,7 +6,6 @@ import json
 
 import pytest
 
-import mibare.core.resolve as resolve_module
 from mibare.core.errors import (
     GitHubUnavailableError,
     InvalidPlatformError,
@@ -339,7 +338,7 @@ def test_the_target_defaults_to_the_host(monkeypatch: pytest.MonkeyPatch) -> Non
         - The target is the host, asdf is excluded, and there are no notes.
     """
     windows = Platform("windows", "arm64")
-    monkeypatch.setattr(resolve_module, "host_platform", lambda: windows)
+    monkeypatch.setattr("mibare.core.resolve.host_platform", lambda: windows)
     registry = entry("tool", "aqua:o/r", "asdf:o/r")
 
     resolution = resolve("o/r", FakeMise([registry]))
@@ -361,7 +360,7 @@ def test_a_target_that_differs_from_the_host_is_noted(
     Then:
         - A note names both platforms and says the registry reflects the host.
     """
-    monkeypatch.setattr(resolve_module, "host_platform", lambda: HOST)
+    monkeypatch.setattr("mibare.core.resolve.host_platform", lambda: HOST)
 
     resolution = resolve("o/r", FakeMise(), Platform("windows", "x64"))
 
@@ -383,7 +382,7 @@ def test_a_target_equal_to_the_host_adds_no_note(
     Then:
         - There are no notes.
     """
-    monkeypatch.setattr(resolve_module, "host_platform", lambda: HOST)
+    monkeypatch.setattr("mibare.core.resolve.host_platform", lambda: HOST)
 
     assert resolve("o/r", FakeMise(), HOST).notes == ()
 

@@ -299,9 +299,8 @@ ignore_decorators = [
 # ``arguments`` parameter is mandated by the call_tool signature, the Textual
 # names (CSS/compose/on_mount/title/BINDINGS) are invoked by the TUI framework,
 # and ``pytestmark``/``pytest_*`` (conftest hooks) are consumed by pytest at
-# collection time. ``HTTPResponse`` is imported for a string-form ``cast`` in the
-# GitHub transport, which vulture cannot see.
-ignore_names = ["CONFIG_FILE_PATH", "logger", "main", "model_config", "pytest_*", "pytestmark", "collect_ignore_glob", "HTTPResponse"]
+# collection time.
+ignore_names = ["CONFIG_FILE_PATH", "logger", "main", "model_config", "pytest_*", "pytestmark", "collect_ignore_glob"]
 min_confidence = 60
 paths = ["src", "tests"]
 
