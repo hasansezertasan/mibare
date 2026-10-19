@@ -406,3 +406,78 @@ def test_platform_rejects_anything_but_a_known_os_arch(text: str) -> None:
     """An unknown OS, an unknown arch or the wrong shape is an error."""
     with pytest.raises(InvalidPlatformError, match="os-arch"):
         Platform.parse(text)
+
+
+def test_aqua_recipe_without_a_registry_entry_is_a_candidate() -> None:
+    """A repository with an aqua recipe but no registry entry resolves to aqua.
+
+    Given:
+        - A registry that lacks the repository and an aqua recipe for it.
+    When:
+        - ``sharkdp/fd`` is resolved.
+    Then:
+        - ``aqua:sharkdp/fd`` is the only candidate and the recommendation.
+    """
+    resolution = resolve("sharkdp/fd", FakeMise([RIPGREP], recipes=["aqua:sharkdp/fd"]))
+
+    assert [c.backend_string for c in resolution.candidates] == ["aqua:sharkdp/fd"]
+    assert resolution.recommendation is resolution.candidates[0]
+
+
+def test_no_aqua_recipe_means_no_aqua_candidate() -> None:
+    """A repository without an aqua recipe gets no aqua candidate.
+
+    Given:
+        - A registry without the repository and a recipe for another one.
+    When:
+        - ``sharkdp/fd`` is resolved.
+    Then:
+        - There are no candidates.
+    """
+    resolution = resolve("sharkdp/fd", FakeMise(recipes=["aqua:BurntSushi/ripgrep"]))
+
+    assert resolution.candidates == ()
+
+
+def test_a_backend_found_by_registry_and_aqua_appears_once() -> None:
+    """The same backend string from two steps collapses into one candidate.
+
+    Given:
+        - A registry entry listing aqua and ubi, and an aqua recipe.
+    When:
+        - ``BurntSushi/ripgrep`` is resolved.
+    Then:
+        - ``aqua:BurntSushi/ripgrep`` appears once, in its registry position.
+    """
+    resolution = resolve(
+        "BurntSushi/ripgrep", FakeMise([RIPGREP], recipes=["aqua:BurntSushi/ripgrep"])
+    )
+
+    assert [c.backend_string for c in resolution.candidates] == [
+        "aqua:BurntSushi/ripgrep",
+        "ubi:BurntSushi/ripgrep",
+    ]
+
+
+def test_aqua_recipe_is_added_and_outranks_a_legacy_registry_backend() -> None:
+    """A registry entry without aqua still gets the aqua recipe, ranked by tier.
+
+    Given:
+        - A registry entry listing only ubi, and an aqua recipe.
+    When:
+        - ``BurntSushi/ripgrep`` is resolved.
+    Then:
+        - The aqua candidate ranks ahead of the legacy ubi backend.
+    """
+    resolution = resolve(
+        "BurntSushi/ripgrep",
+        FakeMise(
+            [entry("ripgrep", "ubi:BurntSushi/ripgrep")],
+            recipes=["aqua:BurntSushi/ripgrep"],
+        ),
+    )
+
+    assert [c.backend_string for c in resolution.candidates] == [
+        "aqua:BurntSushi/ripgrep",
+        "ubi:BurntSushi/ripgrep",
+    ]

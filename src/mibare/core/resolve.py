@@ -156,12 +156,16 @@ def resolve(
         )
         notes = (note,)
     mise_version = mise.version()
-    candidates: tuple[Candidate, ...] = ()
+    backends: list[str] = []
     for entry in mise.registry():
         if any(_points_at(parsed, backend) for backend in entry.backends):
-            ranked = sorted(
-                (_candidate(b) for b in entry.backends), key=lambda c: c.tier
-            )
-            candidates = tuple(c for c in ranked if _usable_on(c, target))
+            backends.extend(entry.backends)
             break
+    aqua = f"aqua:{parsed.shorthand}"
+    if aqua not in backends and mise.recipe_exists(aqua):
+        backends.append(aqua)
+    ranked = sorted(
+        (_candidate(b) for b in dict.fromkeys(backends)), key=lambda c: c.tier
+    )
+    candidates = tuple(c for c in ranked if _usable_on(c, target))
     return Resolution(parsed, mise_version, candidates, target, notes)

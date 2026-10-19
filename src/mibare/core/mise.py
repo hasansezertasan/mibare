@@ -66,6 +66,10 @@ class Mise(Protocol):
         """Return the registry entries in registry order."""
         raise NotImplementedError
 
+    def recipe_exists(self, backend_string: str) -> bool:
+        """Say whether mise can list versions of ``backend_string``."""
+        raise NotImplementedError
+
 
 def run_process(
     args: Sequence[str], env: Mapping[str, str], cwd: Path
@@ -184,18 +188,55 @@ class SubprocessMise:
             raise MiseError(message)
         return tuple(entry for entry in entries if entry is not None)
 
-    def _execute(self, *arguments: str) -> str:
-        """Run ``mise`` with ``arguments`` in an isolated environment.
+    def recipe_exists(self, backend_string: str) -> bool:
+        """Say whether mise can list versions of ``backend_string``.
 
         Args:
-            *arguments: The arguments to pass to ``mise``.
+            backend_string: A backend string such as ``aqua:owner/repo``.
+
+        Returns:
+            bool: ``True`` when ``mise ls-remote`` exits 0, so the recipe exists.
+        """
+        _ = self.version()
+        _, done = self._complete("ls-remote", backend_string)
+        return done.returncode == 0
+
+    def _execute(self, *arguments: str) -> str:
+        """Run `mise` with `arguments`, requiring exit code 0.
+
+        Args:
+            *arguments: The arguments to pass to `mise`.
 
         Returns:
             str: Standard output.
 
         Raises:
-            MiseNotFoundError: If there is no ``mise`` binary.
             MiseError: If mise cannot run or exits non-zero.
+        """
+        command, done = self._complete(*arguments)
+        if done.returncode != 0:
+            message = (
+                f"`{' '.join(command)}` failed with exit code {done.returncode}: "
+                f"{done.stderr.strip()}"
+            )
+            raise MiseError(message)
+        return done.stdout
+
+    def _complete(
+        self, *arguments: str
+    ) -> tuple[tuple[str, ...], subprocess.CompletedProcess[str]]:
+        """Run `mise` with `arguments` in an isolated environment.
+
+        Args:
+            *arguments: The arguments to pass to `mise`.
+
+        Returns:
+            tuple[tuple[str, ...], subprocess.CompletedProcess[str]]: The command
+                line and the finished process, whatever its exit code.
+
+        Raises:
+            MiseNotFoundError: If there is no `mise` binary.
+            MiseError: If mise cannot run.
         """
         with tempfile.TemporaryDirectory(prefix="mibare-") as home:
             env = {"HOME": home, "MISE_NO_CONFIG": "1"}
@@ -210,10 +251,4 @@ class SubprocessMise:
             except (OSError, subprocess.TimeoutExpired) as exc:
                 message = f"Could not run `{' '.join(command)}`: {exc}"
                 raise MiseError(message) from exc
-        if done.returncode != 0:
-            message = (
-                f"`{' '.join(command)}` failed with exit code {done.returncode}: "
-                f"{done.stderr.strip()}"
-            )
-            raise MiseError(message)
-        return done.stdout
+        return command, done
