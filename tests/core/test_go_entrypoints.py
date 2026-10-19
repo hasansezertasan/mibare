@@ -89,9 +89,30 @@ def test_library_only_module_gives_no_go_candidate() -> None:
     assert "package main" in excluded.reason
 
 
-def test_no_go_mod_gives_no_go_candidate() -> None:
-    """Without a root ``go.mod`` there is no Go module."""
-    resolution = _go({"main.go": MAIN})
+def test_package_main_without_go_mod_falls_back_to_the_github_path() -> None:
+    """Without a root ``go.mod`` the repository's GitHub path stands in.
+
+    Given:
+        - A root ``package main`` and a ``cmd/x`` binary, but no ``go.mod``.
+    When:
+        - The repository is resolved.
+    Then:
+        - The candidates use ``github.com/owner/repo`` and say it is a fallback.
+    """
+    resolution = _go({"main.go": MAIN, "cmd/x/main.go": MAIN})
+
+    assert _backends(resolution) == [
+        "go:github.com/owner/tool",
+        "go:github.com/owner/tool/cmd/x",
+    ]
+    assert all(
+        any("go.mod" in reason for reason in c.reasons) for c in resolution.candidates
+    )
+
+
+def test_no_go_mod_and_no_package_main_gives_no_go_candidate() -> None:
+    """A repository with neither a ``go.mod`` nor a ``package main`` is not Go."""
+    resolution = _go({"tool.go": LIB})
 
     assert resolution.candidates == ()
     assert any("go.mod" in x.reason for x in resolution.exclusions)

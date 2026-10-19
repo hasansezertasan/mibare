@@ -85,23 +85,29 @@ def _module_path(go_mod: str, repository: Repository) -> str:
 def detect_go(repository: Repository, github: GitHub) -> list[Detection]:
     """Look for ``package main`` at the root and under ``cmd/<name>``.
 
+    The module path comes from ``go.mod``. Without a ``go.mod`` the
+    repository's GitHub path stands in for it, and the reason says so.
+
     Returns:
-        list[Detection]: One ``found`` detection per binary, or a single
-            exclusion when the module has none or there is no ``go.mod``.
+        list[Detection]: One ``found`` detection per entrypoint, or a single
+            exclusion when the module has none.
     """
-    fallback = f"go:github.com/{repository.shorthand}"
     go_mod = github.root_file(repository, "go.mod")
-    if go_mod is None:
-        reason = "no go.mod in the repository root"
-        return [Detection(fallback, reason, found=False)]
-    module = _module_path(go_mod, repository)
+    fallback = f"github.com/{repository.shorthand}"
+    module = fallback if go_mod is None else _module_path(go_mod, repository)
+    note = " (no go.mod in the repository root; assumed " + fallback + ")"
     found = [
-        Detection(f"go:{module}{subpath}", f"{where} declares package main")
+        Detection(
+            f"go:{module}{subpath}",
+            f"{where} declares package main{note if go_mod is None else ''}",
+        )
         for subpath, where in _binaries(repository, github)
     ]
     if found:
         return found
     reason = "no package main in the root or under cmd/"
+    if go_mod is None:
+        reason = "no go.mod in the repository root and " + reason
     return [Detection(f"go:{module}", reason, found=False)]
 
 
