@@ -1,0 +1,65 @@
+---
+name: Task Completed Check
+on:
+  # pull_request_target is required so the check run posts on PRs from forks with
+  # a least-privilege `checks: write` token. It is safe here: no PR code is checked
+  # out or executed — the pinned action only reads the PR description's task list.
+  pull_request_target:  # zizmor: ignore[dangerous-triggers]
+    types: [opened, edited, synchronize, reopened]
+jobs:
+  task-check:
+    name: Check PR task list
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      checks: write
+      pull-requests: read
+    steps:
+      - name: Check completed tasks
+        # Skip automated PRs (Renovate, Dependabot, etc.) — bots leave task
+        # checkboxes (e.g. Renovate's rebase box) unticked. Keyed on the PR
+        # author, not github.actor, so a human editing a bot PR still skips.
+        if: ${{ !endsWith(github.event.pull_request.user.login, '[bot]') }}
+        uses: kentaro-m/task-completed-checker-action@2ddb65fdd5577bae4a8e82e0564e459677aec893  # v0.1.2
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Enforce the task check for human pull requests
+        # The action reports through its own `Task Completed Checker` check run
+        # but leaves this job green, so this job's name (`Check PR task list`)
+        # is the required status check. Evaluate the CURRENT PR body here rather
+        # than reading the action's run back: the verdict is then a pure
+        # function of present state, so overlapping runs on one head SHA cannot
+        # disagree about which event was newest. The matchers mirror the action
+        # (unticked `- [ ]` lines after stripping explicitly ignored blocks);
+        # bot PRs skip both steps and stay green via the POST below.
+        if: ${{ !endsWith(github.event.pull_request.user.login, '[bot]') }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          body="$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}" --jq .body)"
+          stripped="$(printf '%s' "${body}" | python3 -c 'import re,sys; print(re.sub(r"<!-- ignore-task-list-start -->[\s| ]*(- \[[x| ]\] .+[\s| ]*)+<!-- ignore-task-list-end -->", "", sys.stdin.read()))')"
+          if printf '%s' "${stripped}" | grep -Eq -- '- \[[ ]\].+'; then
+            echo "::error::Unticked task-list boxes remain — tick every PR task-list box."
+            exit 1
+          fi
+      - name: Report the task check as satisfied for bot pull requests
+        # Bots leave task checkboxes unticked by design, so the action step is
+        # skipped for them. Publish the informational check run green here; the
+        # required gate is this job's own conclusion, which stays green for
+        # bots. (A required check on the check-run name stopped being honored
+        # by ruleset evaluation on 2026-10-16 — see issue #418.)
+        if: ${{ endsWith(github.event.pull_request.user.login, '[bot]') }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Read through env, never interpolated into the shell — the PR head SHA
+          # is fork-controlled data on a pull_request_target run.
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          gh api -X POST "repos/${GITHUB_REPOSITORY}/check-runs" \
+            -f name='Task Completed Checker' \
+            -f head_sha="${HEAD_SHA}" \
+            -f status=completed \
+            -f conclusion=success \
+            -f 'output[title]=Skipped for an automated pull request' \
+            -f 'output[summary]=Automated pull requests leave task checkboxes unticked by design.'
