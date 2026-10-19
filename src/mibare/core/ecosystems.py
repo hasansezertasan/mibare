@@ -365,6 +365,46 @@ def _detect_cargo(
     return _cargo_bin_detection(manifest, repository, github)
 
 
+#: mibare's platform names as ``process.platform`` and ``process.arch`` spell them.
+_NPM_OS = {"linux": "linux", "macos": "darwin", "windows": "win32"}
+_NPM_CPU = {"x64": "x64", "arm64": "arm64"}
+
+
+def _npm_allows(value: object, actual: str) -> bool:
+    """Apply an npm ``os`` or ``cpu`` list to one value, as npm does.
+
+    Returns:
+        bool: ``False`` when the list has allow entries and none match, or a
+            ``!`` entry matches; ``True`` otherwise, and for a list that is not
+            made of strings.
+    """
+    if not isinstance(value, list) or not all(
+        isinstance(item, str) for item in cast("list[object]", value)
+    ):
+        return True
+    entries = cast("list[str]", value)
+    allowed = [entry for entry in entries if not entry.startswith("!")]
+    denied = {entry[1:] for entry in entries if entry.startswith("!")}
+    return actual not in denied and (not allowed or actual in allowed)
+
+
+def _npm_excluded_by(manifest: dict[str, object], platform: Platform) -> str | None:
+    """Find the ``package.json`` field that rules the target platform out.
+
+    Returns:
+        str | None: The reason naming the field and target, or ``None`` when
+            ``os`` and ``cpu`` permit the target.
+    """
+    checks = (
+        ("os", _NPM_OS[platform.os], platform.os),
+        ("cpu", _NPM_CPU[platform.arch], platform.arch),
+    )
+    for field_name, actual, label in checks:
+        if not _npm_allows(manifest.get(field_name), actual):
+            return f'package.json "{field_name}" does not allow {label}'
+    return None
+
+
 def _detect_npm(
     repository: Repository, github: GitHub, platform: Platform
 ) -> Detection:
@@ -373,7 +413,6 @@ def _detect_npm(
     Returns:
         Detection: ``found`` when ``bin`` is a non-empty string or object.
     """
-    del platform
     backend_string = f"npm:github:{repository.shorthand}"
     text = github.root_file(repository, "package.json")
     if text is None:
@@ -388,6 +427,9 @@ def _detect_npm(
         cast("dict[str, object]", data).get("bin") if isinstance(data, dict) else None
     )
     if isinstance(bin_field, (str, dict)) and bin_field:
+        excluded = _npm_excluded_by(cast("dict[str, object]", data), platform)
+        if excluded is not None:
+            return Detection(backend_string, excluded, found=False)
         return Detection(backend_string, "package.json declares a bin entrypoint")
     reason = "package.json declares no bin entrypoint"
     return Detection(backend_string, reason, found=False)

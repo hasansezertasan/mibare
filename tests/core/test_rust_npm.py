@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import base64
+import json
 from typing import TYPE_CHECKING
 
 import pytest
@@ -25,9 +26,13 @@ PACKAGE_BIN_STRING = '{"name": "tool", "bin": "cli.js"}'
 PYPROJECT = '[project]\nname = "tool"\n\n[project.scripts]\ntool = "tool:main"\n'
 
 
-def _resolve(files: Mapping[str, str], language: str | None = None) -> Resolution:
+def _resolve(
+    files: Mapping[str, str],
+    language: str | None = None,
+    platform: Platform = LINUX_X64,
+) -> Resolution:
     github = FakeGitHub(files=files, language=language)
-    return resolve(TOOL, FakeMise(), LINUX_X64, github=github)
+    return resolve(TOOL, FakeMise(), platform, github=github)
 
 
 def _backends(resolution: Resolution) -> list[str]:
@@ -150,6 +155,96 @@ def test_malformed_package_json_is_an_exclusion_with_a_reason() -> None:
 
     assert resolution.candidates == ()
     assert "valid JSON" in _excluded(resolution, "npm:github:owner/tool")
+
+
+def _package(**fields: object) -> str:
+    return json.dumps({"name": "tool", "bin": "cli.js", **fields})
+
+
+@pytest.mark.parametrize(
+    ("fields", "target"),
+    [
+        ({"os": ["linux", "darwin"]}, Platform("linux", "x64")),
+        ({"os": ["linux", "darwin"]}, Platform("macos", "arm64")),
+        ({"os": ["win32"]}, Platform("windows", "x64")),
+        ({"os": ["!win32"]}, Platform("linux", "x64")),
+        ({"os": ["!win32", "!darwin"]}, Platform("linux", "arm64")),
+        ({"cpu": ["x64"]}, Platform("linux", "x64")),
+        ({"cpu": ["arm64", "x64"]}, Platform("macos", "arm64")),
+        ({"cpu": ["!arm64"]}, Platform("linux", "x64")),
+        ({"os": ["darwin", "linux"], "cpu": ["x64"]}, Platform("linux", "x64")),
+        ({"os": ["linux", "!win32"]}, Platform("linux", "x64")),
+        ({"os": []}, Platform("windows", "x64")),
+        ({}, Platform("windows", "arm64")),
+    ],
+)
+def test_npm_os_and_cpu_that_allow_the_target_keep_the_candidate(
+    fields: dict[str, object], target: Platform
+) -> None:
+    """A target the manifest's ``os`` and ``cpu`` permit still gets a candidate."""
+    resolution = _resolve({"package.json": _package(**fields)}, platform=target)
+
+    assert _backends(resolution) == ["npm:github:owner/tool"]
+
+
+@pytest.mark.parametrize(
+    ("fields", "target", "reason"),
+    [
+        (
+            {"os": ["linux", "darwin"]},
+            Platform("windows", "x64"),
+            '"os" does not allow windows',
+        ),
+        ({"os": ["win32"]}, Platform("macos", "arm64"), '"os" does not allow macos'),
+        ({"os": ["!win32"]}, Platform("windows", "x64"), '"os" does not allow windows'),
+        (
+            {"os": ["darwin", "!darwin"]},
+            Platform("macos", "x64"),
+            '"os" does not allow macos',
+        ),
+        (
+            {"os": ["linux", "!win32"]},
+            Platform("windows", "x64"),
+            '"os" does not allow windows',
+        ),
+        ({"cpu": ["x64"]}, Platform("linux", "arm64"), '"cpu" does not allow arm64'),
+        ({"cpu": ["!x64"]}, Platform("linux", "x64"), '"cpu" does not allow x64'),
+        (
+            {"os": ["linux"], "cpu": ["arm64"]},
+            Platform("linux", "x64"),
+            '"cpu" does not allow x64',
+        ),
+    ],
+)
+def test_npm_os_or_cpu_that_exclude_the_target_drop_the_candidate(
+    fields: dict[str, object], target: Platform, reason: str
+) -> None:
+    """A target the manifest's ``os`` or ``cpu`` rules out is an exclusion."""
+    resolution = _resolve({"package.json": _package(**fields)}, platform=target)
+
+    assert resolution.candidates == ()
+    assert reason in _excluded(resolution, "npm:github:owner/tool")
+
+
+@pytest.mark.parametrize(
+    "fields",
+    [
+        {"os": "linux"},
+        {"os": {"linux": True}},
+        {"os": ["linux", 3]},
+        {"os": 3},
+        {"cpu": "x64"},
+        {"cpu": [["x64"]]},
+        {"cpu": None},
+    ],
+)
+def test_malformed_npm_os_and_cpu_are_ignored(fields: dict[str, object]) -> None:
+    """An ``os`` or ``cpu`` that is not a list of strings does not constrain."""
+    resolution = _resolve(
+        {"package.json": _package(**fields)}, platform=Platform("windows", "arm64")
+    )
+
+    assert _backends(resolution) == ["npm:github:owner/tool"]
 
 
 @pytest.mark.parametrize(
