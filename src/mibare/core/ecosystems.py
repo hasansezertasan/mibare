@@ -25,6 +25,7 @@ if TYPE_CHECKING:
     from collections.abc import Sequence
 
     from mibare.core.github import GitHub
+    from mibare.core.platform import Platform
     from mibare.core.repository import Repository
 
 __all__ = [
@@ -42,12 +43,14 @@ __all__ = [
 class Detector(Protocol):
     """Looks at a repository's root manifest for an entrypoint.
 
+    ``platform`` is the target platform, for detectors whose answer depends on
+    it (Go leaves files out of a build by operating system and architecture).
     It may raise ``GitHubUnavailableError``, which ``resolve()`` turns into a
     skipped-step note.
     """
 
     def __call__(
-        self, repository: Repository, github: GitHub
+        self, repository: Repository, github: GitHub, platform: Platform
     ) -> Detection | Sequence[Detection]:
         """Return the detection for ``repository``, or one per entrypoint."""
         raise NotImplementedError
@@ -79,12 +82,15 @@ class Ecosystem:
         return language.lower() in {name.lower() for name in self.languages}
 
 
-def _detect_python(repository: Repository, github: GitHub) -> Detection:
+def _detect_python(
+    repository: Repository, github: GitHub, platform: Platform
+) -> Detection:
     """Look for ``[project.scripts]`` in the root ``pyproject.toml``.
 
     Returns:
         Detection: ``found`` when at least one script is declared.
     """
+    del platform
     backend_string = f"pypi:{repository.shorthand}"
     text = github.root_file(repository, "pyproject.toml")
     if text is None:
@@ -238,12 +244,15 @@ def _cargo_bin_detection(
     return Detection(backend_string, reason, found=False)
 
 
-def _detect_cargo(repository: Repository, github: GitHub) -> Detection:
+def _detect_cargo(
+    repository: Repository, github: GitHub, platform: Platform
+) -> Detection:
     """Look for a ``[[bin]]`` table or a ``src/main.rs`` beside ``Cargo.toml``.
 
     Returns:
         Detection: ``found`` when the crate has a bin target.
     """
+    del platform
     backend_string = f"cargo:{repository.shorthand}"
     text = github.root_file(repository, "Cargo.toml")
     if text is None:
@@ -257,12 +266,15 @@ def _detect_cargo(repository: Repository, github: GitHub) -> Detection:
     return _cargo_bin_detection(manifest, repository, github)
 
 
-def _detect_npm(repository: Repository, github: GitHub) -> Detection:
+def _detect_npm(
+    repository: Repository, github: GitHub, platform: Platform
+) -> Detection:
     """Look for a non-empty ``bin`` in the root ``package.json``.
 
     Returns:
         Detection: ``found`` when ``bin`` is a non-empty string or object.
     """
+    del platform
     backend_string = f"npm:github:{repository.shorthand}"
     text = github.root_file(repository, "package.json")
     if text is None:

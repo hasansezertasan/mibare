@@ -23,9 +23,11 @@ import re
 from typing import TYPE_CHECKING
 
 from mibare.core.detection import Detection
+from mibare.core.go_constraints import constraint_matches, name_matches
 
 if TYPE_CHECKING:
     from mibare.core.github import GitHub
+    from mibare.core.platform import Platform
     from mibare.core.repository import Repository
 
 __all__ = ["MAX_FILES_PER_DIR", "MAX_FILE_READS", "detect_go"]
@@ -88,8 +90,17 @@ def _declares_main(source: str) -> bool:
     return match is not None and match.group(1) == "main"
 
 
-def _go_directories(paths: tuple[str, ...]) -> dict[str, list[str]]:
-    """Group the non-test ``.go`` files of the root and ``cmd/<name>`` by directory.
+def _is_main(source: str, platform: Platform) -> bool:
+    """Whether ``source`` is a ``package main`` file built for ``platform``.
+
+    Returns:
+        bool: ``True`` when its build constraint holds and it declares main.
+    """
+    return constraint_matches(source, platform) and _declares_main(source)
+
+
+def _go_directories(paths: tuple[str, ...], platform: Platform) -> dict[str, list[str]]:
+    """Group the ``.go`` files built for ``platform`` in the root and ``cmd/<name>``.
 
     Returns:
         dict[str, list[str]]: File names per directory (``""`` for the root),
@@ -99,7 +110,7 @@ def _go_directories(paths: tuple[str, ...]) -> dict[str, list[str]]:
     grouped: dict[str, list[str]] = {}
     for path in paths:
         parts = path.split("/")
-        if not parts[-1].endswith(".go") or parts[-1].endswith("_test.go"):
+        if not parts[-1].endswith(".go") or not name_matches(parts[-1], platform):
             continue
         if len(parts) == 1:
             grouped.setdefault("", []).append(parts[0])
@@ -122,7 +133,9 @@ def _note_per_directory_cap(
         reader.limit(f"it reads at most {MAX_FILES_PER_DIR} files per directory")
 
 
-def _find_mains(reader: _Reader, directories: dict[str, list[str]]) -> set[str]:
+def _find_mains(
+    reader: _Reader, directories: dict[str, list[str]], platform: Platform
+) -> set[str]:
     """Find the directories whose files declare ``package main``.
 
     Files are read round-robin, so every directory's first file is read before
@@ -138,7 +151,7 @@ def _find_mains(reader: _Reader, directories: dict[str, list[str]]) -> set[str]:
                 continue
             prefix = f"{directory}/" if directory else ""
             source = reader.read(f"{prefix}{names[rank]}")
-            if source is not None and _declares_main(source):
+            if source is not None and _is_main(source, platform):
                 found.add(directory)
     _note_per_directory_cap(reader, directories, found)
     return found
@@ -154,7 +167,9 @@ def _module_path(go_mod: str, repository: Repository) -> str:
     return match.group(1) if match else f"github.com/{repository.shorthand}"
 
 
-def detect_go(repository: Repository, github: GitHub) -> list[Detection]:
+def detect_go(
+    repository: Repository, github: GitHub, platform: Platform
+) -> list[Detection]:
     """Look for ``package main`` at the root and under ``cmd/<name>``.
 
     The module path comes from ``go.mod``. Without a ``go.mod`` the
@@ -172,7 +187,8 @@ def detect_go(repository: Repository, github: GitHub) -> list[Detection]:
     go_mod = reader.read("go.mod") if has_go_mod else None
     fallback = f"github.com/{repository.shorthand}"
     module = fallback if go_mod is None else _module_path(go_mod, repository)
-    mains = _find_mains(reader, _go_directories(listing.paths))
+    directories = _go_directories(listing.paths, platform)
+    mains = _find_mains(reader, directories, platform)
     note = " (no go.mod in the repository root; assumed " + fallback + ")"
     found = [
         Detection(

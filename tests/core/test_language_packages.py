@@ -142,8 +142,8 @@ def _fake_ecosystem(prefix: str, language: str) -> Ecosystem:
         Ecosystem: The fake ecosystem.
     """
 
-    def detect(repository: Repository, github: GitHub) -> Detection:
-        del github
+    def detect(repository: Repository, github: GitHub, platform: Platform) -> Detection:
+        del github, platform
         backend = f"{prefix}:{repository.shorthand}"
         return Detection(backend, f"fake {prefix} entrypoint")
 
@@ -227,3 +227,20 @@ def test_a_failed_language_lookup_keeps_the_alphabetical_order_and_says_so() -> 
         "language-package" in note and "skipped" in note.lower()
         for note in resolution.notes
     )
+
+
+def test_detectors_receive_the_target_platform() -> None:
+    """``resolve()`` hands the target platform to every detector."""
+    seen: list[Platform] = []
+
+    def detect(repository: Repository, github: GitHub, platform: Platform) -> Detection:
+        del github
+        seen.append(platform)
+        return Detection(f"fake:{repository.shorthand}", "fake entrypoint")
+
+    fake = Ecosystem("fake", frozenset(), detect)
+    windows = Platform("windows", "arm64")
+
+    _ = resolve(TOOL, FakeMise(), windows, github=FakeGitHub(), ecosystems=(fake,))
+
+    assert seen == [windows]

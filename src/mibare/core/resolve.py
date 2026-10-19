@@ -349,7 +349,10 @@ def _add_github(
 
 
 def _run_detectors(
-    repository: Repository, github: GitHub, ecosystems: Sequence[Ecosystem]
+    repository: Repository,
+    github: GitHub,
+    target: Platform,
+    ecosystems: Sequence[Ecosystem],
 ) -> tuple[list[tuple[Ecosystem, Detection]], GitHubUnavailableError | None]:
     """Run each detector, surviving a GitHub failure in any of them.
 
@@ -358,7 +361,7 @@ def _run_detectors(
             The detections that completed and the last failure, if any.
     """
     outcomes = [
-        (ecosystem, _detect_one(ecosystem, repository, github))
+        (ecosystem, _detect_one(ecosystem, repository, github, target))
         for ecosystem in ecosystems
     ]
     results = [
@@ -376,7 +379,7 @@ def _run_detectors(
 
 
 def _detect_one(
-    ecosystem: Ecosystem, repository: Repository, github: GitHub
+    ecosystem: Ecosystem, repository: Repository, github: GitHub, target: Platform
 ) -> tuple[Detection, ...] | GitHubUnavailableError:
     """Run one detector, returning a GitHub failure instead of raising it.
 
@@ -385,7 +388,7 @@ def _detect_one(
             per entrypoint for a multi-entrypoint repository) or the failure.
     """
     try:
-        detected = ecosystem.detect(repository, github)
+        detected = ecosystem.detect(repository, github, target)
     except GitHubUnavailableError as error:
         return error
     return (detected,) if isinstance(detected, Detection) else tuple(detected)
@@ -418,6 +421,7 @@ def _add_language_packages(
     findings: _Findings,
     repository: Repository,
     github: GitHub | None,
+    target: Platform,
     ecosystems: Sequence[Ecosystem],
 ) -> tuple[Exclusion, ...]:
     """Add the language-package backends whose ecosystem finds an entrypoint.
@@ -429,7 +433,7 @@ def _add_language_packages(
     """
     if github is None:
         return ()
-    results, failure = _run_detectors(repository, github, ecosystems)
+    results, failure = _run_detectors(repository, github, target, ecosystems)
     _offer(findings.backends, [(ecosystem, d) for ecosystem, d in results if d.found])
     for _, detection in results:
         findings.notes.extend(n for n in detection.notes if n not in findings.notes)
@@ -547,7 +551,9 @@ def _gather(
     """
     findings = _found_backends(repository, mise)
     _add_github(findings, repository, mise, github, target)
-    undetected = _add_language_packages(findings, repository, github, ecosystems)
+    undetected = _add_language_packages(
+        findings, repository, github, target, ecosystems
+    )
     language = _lookup_language(findings, repository, github, ecosystems)
     candidates, unusable = _rank(findings.backends, target, ecosystems, language)
     exclusions = (*findings.exclusions, *unusable, *undetected)

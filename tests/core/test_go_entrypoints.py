@@ -14,6 +14,7 @@ if TYPE_CHECKING:
     from collections.abc import Mapping
 
 LINUX_X64 = Platform("linux", "x64")
+WINDOWS_X64 = Platform("windows", "x64")
 TOOL = "owner/tool"
 GO_MOD = "module github.com/owner/tool\n\ngo 1.22\n"
 MAIN = "package main\n\nfunc main() {}\n"
@@ -226,6 +227,66 @@ def test_a_library_search_that_hits_a_limit_still_notes_it() -> None:
 
     assert resolution.candidates == ()
     assert any("Go search was limited" in note for note in resolution.notes)
+
+
+def _main_with(name: str, source: str, platform: Platform) -> list[str]:
+    """Resolve a repository whose only Go file is ``name`` for ``platform``.
+
+    Returns:
+        list[str]: The backend strings.
+    """
+    github = FakeGitHub(files={"go.mod": GO_MOD, name: source})
+    resolution = resolve(TOOL, FakeMise(), platform, github=github)
+    return _backends(resolution)
+
+
+def test_a_main_file_excluded_by_its_name_gives_no_candidate() -> None:
+    """``package main`` only in ``main_windows.go`` is no entrypoint on Linux."""
+    assert _main_with("main_windows.go", MAIN, LINUX_X64) == []
+    assert _main_with("main_windows.go", MAIN, WINDOWS_X64) == [
+        "go:github.com/owner/tool"
+    ]
+
+
+def test_a_test_file_is_never_an_entrypoint() -> None:
+    """``package main`` in a ``_test.go`` file does not count."""
+    assert _main_with("main_test.go", MAIN, LINUX_X64) == []
+
+
+def test_a_main_file_excluded_by_a_build_constraint_gives_no_candidate() -> None:
+    """A ``//go:build`` line is evaluated for the target platform."""
+    source = "//go:build windows\n\npackage main\n"
+
+    assert _main_with("main.go", source, LINUX_X64) == []
+    assert _main_with("main.go", source, WINDOWS_X64) == ["go:github.com/owner/tool"]
+
+
+def test_a_generator_with_the_ignore_tag_is_not_an_entrypoint() -> None:
+    """``//go:build ignore`` (custom tag) counts as false."""
+    source = "//go:build ignore\n\npackage main\n"
+
+    assert _main_with("gen.go", source, LINUX_X64) == []
+
+
+def test_the_platform_is_mapped_to_go_names() -> None:
+    """``macos`` is ``darwin`` and ``x64`` is ``amd64`` for file selection."""
+    macos = Platform("macos", "arm64")
+
+    assert _main_with("main_darwin_arm64.go", MAIN, macos) == [
+        "go:github.com/owner/tool"
+    ]
+    assert _main_with("main_darwin_arm64.go", MAIN, LINUX_X64) == []
+
+
+def test_a_platform_specific_file_is_skipped_for_the_main_one() -> None:
+    """The next file is tried when the first is built for another platform."""
+    files = {"go.mod": GO_MOD, "a_windows.go": MAIN, "b.go": MAIN}
+    github = FakeGitHub(files=files)
+
+    resolution = resolve(TOOL, FakeMise(), LINUX_X64, github=github, ecosystems=(GO,))
+
+    assert _backends(resolution) == ["go:github.com/owner/tool"]
+    assert "a_windows.go" not in github.file_reads
 
 
 def test_go_is_favoured_by_go_language() -> None:
