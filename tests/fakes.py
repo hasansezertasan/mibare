@@ -22,10 +22,16 @@ class FakeMise:
         recipes: Sequence[str] = (),
         version: str = "2026.10.13",
         error: Exception | None = None,
+        probe_errors: Mapping[str, Exception] | None = None,
     ) -> None:
-        """Set the fixture registry, recipes and version, or a ``version`` error."""
+        """Set the fixture registry, recipes and version, or errors to raise.
+
+        ``error`` fails ``version()``; ``probe_errors`` fails the existence
+        probe of the backend strings it names.
+        """
         self._registry = tuple(registry)
         self._recipes = frozenset(recipes)
+        self._probe_errors = dict(probe_errors or {})
         self._version = version
         self._error = error
 
@@ -53,6 +59,8 @@ class FakeMise:
         Returns:
             bool: ``True`` when it is one of the fixture recipes.
         """
+        if backend_string in self._probe_errors:
+            raise self._probe_errors[backend_string]
         return backend_string in self._recipes
 
 

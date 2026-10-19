@@ -717,3 +717,45 @@ def test_network_failure_without_results_raises() -> None:
 
     with pytest.raises(GitHubUnavailableError, match="could not reach GitHub"):
         _ = resolve(TOOL, mise, LINUX_X64, github=github)
+
+
+def test_a_failed_aqua_probe_is_skipped_and_the_other_steps_survive() -> None:
+    """A mise failure on the aqua probe is a skipped step, not an absent recipe.
+
+    Given:
+        - A registry backend for the repository and an aqua probe that fails.
+    When:
+        - The repository is resolved.
+    Then:
+        - The registry candidate is kept and a note names the aqua step.
+    """
+    mise = FakeMise(
+        [entry("tool", "github:owner/tool")],
+        probe_errors={"aqua:owner/tool": MiseError("network down")},
+    )
+
+    resolution = resolve(TOOL, mise, LINUX_X64)
+
+    assert [c.backend_string for c in resolution.candidates] == ["github:owner/tool"]
+    assert "Skipped the aqua step: network down" in resolution.notes
+
+
+def test_a_failed_github_probe_is_skipped_and_keeps_earlier_results() -> None:
+    """A mise failure on the github: probe is a skipped step."""
+    mise = FakeMise(
+        recipes=["aqua:owner/tool"],
+        probe_errors={GITHUB_TOOL: MiseError("rate limited")},
+    )
+
+    resolution = resolve(TOOL, mise, LINUX_X64, github=FakeGitHub())
+
+    assert [c.backend_string for c in resolution.candidates] == ["aqua:owner/tool"]
+    assert "Skipped the github: step: rate limited" in resolution.notes
+
+
+def test_failed_probes_with_no_candidates_raise_instead_of_no_backend() -> None:
+    """With nothing usable and a probe failing, resolution fails (exit 2)."""
+    mise = FakeMise(probe_errors={"aqua:owner/tool": MiseError("network down")})
+
+    with pytest.raises(MiseError, match="network down"):
+        _ = resolve(TOOL, mise, LINUX_X64)

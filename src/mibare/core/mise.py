@@ -30,6 +30,11 @@ MIN_MISE_VERSION = (2026, 10, 13)
 _INSTALL_URL = "https://mise.jdx.dev/getting-started.html"
 _TIMEOUT_SECONDS = 60
 _VERSION = re.compile(r"(\d+)\.(\d+)\.(\d+)")
+#: What ``mise ls-remote`` prints (checked against mise 2026.10.14) when the
+#: recipe does not exist: an aqua backend with no registry entry, or a
+#: ``github:`` repository that answers 404. Any other failure, such as a
+#: network error or a rate limit, says nothing about whether the recipe exists.
+_ABSENT = re.compile(r"no aqua-registry found for|GitHub repository \S+ not found")
 
 
 class Runner(Protocol):
@@ -67,7 +72,12 @@ class Mise(Protocol):
         raise NotImplementedError
 
     def recipe_exists(self, backend_string: str) -> bool:
-        """Say whether mise can list versions of ``backend_string``."""
+        """Say whether mise can list versions of ``backend_string``.
+
+        Raises:
+            MiseError: If the probe failed for a reason other than the recipe
+                being absent, such as a network failure.
+        """
         raise NotImplementedError
 
 
@@ -195,11 +205,24 @@ class SubprocessMise:
             backend_string: A backend string such as ``aqua:owner/repo``.
 
         Returns:
-            bool: ``True`` when ``mise ls-remote`` exits 0, so the recipe exists.
+            bool: ``True`` when ``mise ls-remote`` exits 0, ``False`` when it
+                reports the recipe as not found.
+
+        Raises:
+            MiseError: If ``mise ls-remote`` fails for any other reason, so a
+                network or rate-limit failure never reads as "absent".
         """
         _ = self.version()
-        _, done = self._complete("ls-remote", backend_string)
-        return done.returncode == 0
+        command, done = self._complete("ls-remote", backend_string)
+        if done.returncode == 0:
+            return True
+        if _ABSENT.search(done.stderr):
+            return False
+        message = (
+            f"`{' '.join(command)}` failed with exit code {done.returncode}: "
+            f"{done.stderr.strip()}"
+        )
+        raise MiseError(message)
 
     def _execute(self, *arguments: str) -> str:
         """Run `mise` with `arguments`, requiring exit code 0.

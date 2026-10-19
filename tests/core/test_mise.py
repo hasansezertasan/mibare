@@ -270,3 +270,73 @@ def test_unusable_mise_output_is_a_mise_error(runner: FakeRunner) -> None:
     """
     with pytest.raises(MiseError):
         _ = SubprocessMise(run=runner).registry()
+
+
+class ProbeRunner(FakeRunner):
+    """Answers ``mise ls-remote`` with a canned exit code and stderr."""
+
+    def __init__(self, returncode: int = 0, stderr: str = "") -> None:
+        """Set the probe's exit code and stderr."""
+        super().__init__()
+        self._probe = (returncode, stderr)
+
+    def __call__(
+        self, args: Sequence[str], env: Mapping[str, str], cwd: Path
+    ) -> subprocess.CompletedProcess[str]:
+        """Answer a probe from the canned result, anything else as usual.
+
+        Returns:
+            subprocess.CompletedProcess[str]: The canned process.
+        """
+        done = super().__call__(args, env, cwd)
+        if "ls-remote" not in args:
+            return done
+        return subprocess.CompletedProcess(
+            list(args), self._probe[0], "", self._probe[1]
+        )
+
+
+ABSENT_AQUA = (
+    "mise ERROR unable to fetch versions for aqua:o/r: registry not available: "
+    "no aqua-registry found for o/r"
+)
+ABSENT_GITHUB = (
+    "mise ERROR GitHub repository o/r not found (404 from mise-versions.jdx.dev, "
+    "which mise asks before api.github.com)."
+)
+
+
+@pytest.mark.parametrize(
+    ("backend_string", "stderr"),
+    [("aqua:o/r", ABSENT_AQUA), ("github:o/r", ABSENT_GITHUB)],
+)
+def test_a_recipe_mise_reports_as_not_found_is_absent(
+    backend_string: str, stderr: str
+) -> None:
+    """Read mise's not-found errors as an absent recipe, not a failure."""
+    mise = SubprocessMise(run=ProbeRunner(1, stderr))
+
+    assert not mise.recipe_exists(backend_string)
+
+
+def test_a_recipe_that_lists_versions_exists() -> None:
+    """Read exit code 0 as an existing recipe."""
+    assert SubprocessMise(run=ProbeRunner()).recipe_exists("aqua:o/r")
+
+
+@pytest.mark.parametrize(
+    "stderr",
+    [
+        "mise ERROR tunnel error: failed to create underlying connection",
+        "mise ERROR HTTP 403 rate limit exceeded",
+        "",
+    ],
+)
+def test_any_other_probe_failure_is_a_mise_error_not_an_absent_recipe(
+    stderr: str,
+) -> None:
+    """Report a network or rate-limit failure instead of calling it absent."""
+    mise = SubprocessMise(run=ProbeRunner(1, stderr))
+
+    with pytest.raises(MiseError):
+        _ = mise.recipe_exists("aqua:o/r")

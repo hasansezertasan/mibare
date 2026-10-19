@@ -3,12 +3,12 @@
 from __future__ import annotations
 
 import shlex
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 from mibare.core.assets import matching_assets
 from mibare.core.ecosystems import ECOSYSTEMS, Detection, Ecosystem
-from mibare.core.errors import GitHubUnavailableError
+from mibare.core.errors import GitHubUnavailableError, MibareError, MiseError
 from mibare.core.platform import Platform, host_platform
 from mibare.core.repository import Repository, parse_repository
 
@@ -223,23 +223,53 @@ def _platform_notes(target: Platform, host: Platform) -> tuple[str, ...]:
     return (note,)
 
 
-def _found_backends(repository: Repository, mise: Mise) -> dict[str, list[str]]:
-    """Collect the backend strings that can install ``repository``.
+@dataclass
+class _Findings:
+    """What the ladder's steps have found so far.
+
+    Attributes:
+        backends: Each backend string found, with the reasons it was found,
+            in discovery order.
+        skipped: The failure of each skipped step, by step name.
+    """
+
+    backends: dict[str, list[str]] = field(default_factory=dict)
+    skipped: dict[str, MibareError] = field(default_factory=dict)
+
+
+def _probe_aqua(repository: Repository, mise: Mise, findings: _Findings) -> None:
+    """Add ``aqua:owner/repo`` when mise has a recipe for it.
+
+    A failed probe is recorded as a skipped step instead of raised.
+    """
+    aqua = f"aqua:{repository.shorthand}"
+    if aqua in findings.backends:
+        return
+    try:
+        exists = mise.recipe_exists(aqua)
+    except MiseError as error:
+        findings.skipped["aqua"] = error
+        return
+    if exists:
+        findings.backends[aqua] = ["mise can list versions for this aqua recipe"]
+
+
+def _found_backends(repository: Repository, mise: Mise) -> _Findings:
+    """Run the registry and aqua steps for ``repository``.
 
     Returns:
-        dict[str, list[str]]: Each backend string with the reasons it was found.
+        _Findings: The backend strings found and any skipped step.
     """
-    found: dict[str, list[str]] = {}
+    findings = _Findings()
+    found = findings.backends
     for entry in mise.registry():
         if any(_points_at(repository, backend) for backend in entry.backends):
             reason = f"listed in the mise registry as {entry.tool!r}"
             for backend in entry.backends:
                 found.setdefault(backend, []).append(reason)
             break
-    aqua = f"aqua:{repository.shorthand}"
-    if aqua not in found and mise.recipe_exists(aqua):
-        found[aqua] = ["mise can list versions for this aqua recipe"]
-    return found
+    _probe_aqua(repository, mise, findings)
+    return findings
 
 
 def _github_release(
@@ -266,28 +296,26 @@ def _github_release(
 
 
 def _add_github(
-    found: dict[str, list[str]],
+    findings: _Findings,
     repository: Repository,
     mise: Mise,
     github: GitHub | None,
     target: Platform,
-) -> GitHubUnavailableError | None:
-    """Add the ``github:`` backend to ``found`` when its step passes.
+) -> None:
+    """Add the ``github:`` backend to ``findings`` when its step passes.
 
-    Returns:
-        GitHubUnavailableError | None: The failure when GitHub was unreachable,
-            otherwise ``None``.
+    A failed probe or an unreachable GitHub is recorded as a skipped step.
     """
     backend = f"github:{repository.shorthand}"
-    if github is None or backend in found:
-        return None
+    if github is None or backend in findings.backends:
+        return
     try:
         reasons = _github_release(repository, mise, github, target)
-    except GitHubUnavailableError as error:
-        return error
+    except (GitHubUnavailableError, MiseError) as error:
+        findings.skipped["github:"] = error
+        return
     if reasons:
-        found[backend] = reasons
-    return None
+        findings.backends[backend] = reasons
 
 
 def _run_detectors(
@@ -360,35 +388,37 @@ def _offer(
 
 
 def _add_language_packages(
-    found: dict[str, list[str]],
+    findings: _Findings,
     repository: Repository,
     github: GitHub | None,
     ecosystems: Sequence[Ecosystem],
-) -> tuple[tuple[Exclusion, ...], GitHubUnavailableError | None]:
+) -> tuple[Exclusion, ...]:
     """Add the language-package backends whose ecosystem finds an entrypoint.
 
     The primary language's backend is added first and the others follow
     alphabetically by backend string, so ranking (a stable sort by tier) keeps
     that order.
 
+    A GitHub failure is recorded as a skipped step.
+
     Returns:
-        tuple[tuple[Exclusion, ...], GitHubUnavailableError | None]: The
-            ecosystems that found nothing, with why, and the failure when
-            GitHub was unreachable.
+        tuple[Exclusion, ...]: The ecosystems that found nothing, with why.
     """
     if github is None:
-        return (), None
+        return ()
     results, failure = _run_detectors(repository, github, ecosystems)
     hits = [(eco, d) for eco, d in results if d.found]
     language = None
     if len(hits) > 1:
         language, language_failure = _primary_language(repository, github)
         failure = failure or language_failure
-    _offer(found, hits, language)
+    _offer(findings.backends, hits, language)
     misses = tuple(
         Exclusion(d.backend_string, d.reason) for _, d in results if not d.found
     )
-    return misses, failure
+    if failure is not None:
+        findings.skipped["language-package"] = failure
+    return misses
 
 
 def _rank(
@@ -413,50 +443,24 @@ def _rank(
     return tuple(candidates), tuple(exclusions)
 
 
-def _skipped_notes(
-    github_failure: GitHubUnavailableError | None,
-    language_failure: GitHubUnavailableError | None,
-) -> tuple[str, ...]:
-    """Name the steps GitHub failures made us skip.
-
-    Returns:
-        tuple[str, ...]: One note per failed step.
-    """
-    steps = (("github:", github_failure), ("language-package", language_failure))
-    return tuple(f"Skipped the {name} step: {why}" for name, why in steps if why)
-
-
 def _gather(
     repository: Repository,
     mise: Mise,
     github: GitHub | None,
     target: Platform,
     ecosystems: Sequence[Ecosystem],
-) -> tuple[
-    tuple[Candidate, ...],
-    tuple[Exclusion, ...],
-    tuple[str, ...],
-    GitHubUnavailableError | None,
-]:
+) -> tuple[tuple[Candidate, ...], tuple[Exclusion, ...], dict[str, MibareError]]:
     """Run the ladder's steps and rank what they found.
 
     Returns:
-        tuple: The candidates, the exclusions, a note for each skipped step
-            and the GitHub failure that caused any skip.
+        tuple: The candidates, the exclusions and the failure of each skipped
+            step by step name.
     """
-    found = _found_backends(repository, mise)
-    github_failure = _add_github(found, repository, mise, github, target)
-    misses, language_failure = _add_language_packages(
-        found, repository, github, ecosystems
-    )
-    candidates, exclusions = _rank(found, target)
-    skipped = _skipped_notes(github_failure, language_failure)
-    return (
-        candidates,
-        (*exclusions, *misses),
-        skipped,
-        github_failure or language_failure,
-    )
+    findings = _found_backends(repository, mise)
+    _add_github(findings, repository, mise, github, target)
+    misses = _add_language_packages(findings, repository, github, ecosystems)
+    candidates, exclusions = _rank(findings.backends, target)
+    return candidates, (*exclusions, *misses), findings.skipped
 
 
 def resolve(
@@ -479,21 +483,23 @@ def resolve(
 
     Returns:
         Resolution: The ranked candidates; the first is the recommendation.
-            When GitHub is unreachable, the offline candidates are kept and
-            the skipped steps are named in ``notes``.
+            When GitHub is unreachable or a mise probe fails, the other
+            candidates are kept and the skipped steps are named in ``notes``.
 
-        A ``GitHubUnavailableError`` is raised instead when GitHub is
-        unreachable and no offline step found a candidate, so the answer does
-        not read as "no backend".
+        The first failure (``GitHubUnavailableError`` or ``MiseError``) is
+        raised instead when a step failed and no step found a candidate, so
+        the answer does not read as "no backend".
     """
     parsed = parse_repository(repository)
     host = host_platform()
     target = platform or host
     mise_version = mise.version()
-    candidates, exclusions, skipped, failure = _gather(
-        parsed, mise, github, target, ecosystems
-    )
-    if not candidates and failure is not None:
+    candidates, exclusions, skipped = _gather(parsed, mise, github, target, ecosystems)
+    if not candidates and skipped:
+        failure = next(iter(skipped.values()))
         raise failure
-    notes = (*_platform_notes(target, host), *skipped)
+    skipped_notes = tuple(
+        f"Skipped the {step} step: {why}" for step, why in skipped.items()
+    )
+    notes = (*_platform_notes(target, host), *skipped_notes)
     return Resolution(parsed, mise_version, candidates, exclusions, target, notes)

@@ -75,3 +75,10 @@ def test_recipe_exists_tells_a_present_backend_from_an_absent_one() -> None:
 
     assert mise.recipe_exists("aqua:BurntSushi/ripgrep")
     assert not mise.recipe_exists("aqua:mibare-nonexistent/nonexistent")
+
+
+def test_recipe_exists_reads_a_missing_github_repository_as_absent() -> None:
+    """Read mise's 404 for an unknown github: repository as absent, not a failure."""
+    mise = SubprocessMise()
+
+    assert not mise.recipe_exists("github:mibare-nonexistent/nonexistent")
