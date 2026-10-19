@@ -17,11 +17,13 @@ class FakeMise:
         self,
         registry: Sequence[RegistryEntry] = (),
         *,
+        recipes: Sequence[str] = (),
         version: str = "2026.10.13",
         error: Exception | None = None,
     ) -> None:
-        """Set the fixture registry and version, or an error ``version`` raises."""
+        """Set the fixture registry, recipes and version, or a ``version`` error."""
         self._registry = tuple(registry)
+        self._recipes = frozenset(recipes)
         self._version = version
         self._error = error
 
@@ -42,6 +44,14 @@ class FakeMise:
             tuple[RegistryEntry, ...]: The fixture entries.
         """
         return self._registry
+
+    def recipe_exists(self, backend_string: str) -> bool:
+        """Say whether a fixture recipe exists for ``backend_string``.
+
+        Returns:
+            bool: ``True`` when it is one of the fixture recipes.
+        """
+        return backend_string in self._recipes
 
 
 def entry(tool: str, *backends: str) -> RegistryEntry:
