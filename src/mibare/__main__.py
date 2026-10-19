@@ -26,7 +26,10 @@ root to fall back on and no obvious way to read a Python stack trace.
 
 import importlib
 import sys
-from collections.abc import Callable
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 # Each of these ships as a core dependency of this package, so a missing one
 # never means "install an extra" -- it means this environment is out of sync with
