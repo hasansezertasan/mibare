@@ -18,7 +18,6 @@ from mibare.core.resolve import Resolution, resolve
 
 __all__ = ["app", "main"]
 
-EXIT_FOUND = 0
 EXIT_NO_BACKEND = 1
 EXIT_ERROR = 2
 
