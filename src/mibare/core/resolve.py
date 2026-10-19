@@ -22,7 +22,7 @@ if TYPE_CHECKING:
     from collections.abc import Sequence
 
     from mibare.core.github import GitHub
-    from mibare.core.mise import Mise
+    from mibare.core.mise import Mise, RegistryEntry
 
 __all__ = ["SCHEMA_VERSION", "Candidate", "Exclusion", "Resolution", "resolve"]
 
@@ -47,6 +47,9 @@ _TIERS = (
 _MIN_TIED = 2  # candidates needed in a tier before a tie-break matters
 _LOWEST_TIER = len(_TIERS) + 1  # plugins and anything unknown
 _LEGACY_BACKENDS = frozenset({"asdf", "vfox", "ubi"})
+_SHORT_NAME_REASON = (
+    "the command uses the registry short name {!r}, so its options apply"
+)
 _LEGACY_WARNING = "{} is a legacy backend that mise discourages; prefer another."
 
 
@@ -62,6 +65,9 @@ class Candidate:
             lower is better. Defaults to the lowest tier.
         legacy: Whether the backend is a legacy backend (asdf, vfox, ubi).
         warning: Why the candidate is discouraged, or ``None``.
+        registry_name: The registry short name to install it by, set only for
+            the backend mise itself picks first for that name, so the entry's
+            options apply; ``None`` otherwise.
     """
 
     backend_string: str
@@ -69,11 +75,16 @@ class Candidate:
     tier: int = _LOWEST_TIER
     legacy: bool = False
     warning: str | None = None
+    registry_name: str | None = None
 
     @property
     def mise_use(self) -> str:
-        """A ready-to-paste ``mise use`` command for this candidate."""
-        return f"mise use {shlex.quote(self.backend_string)}"
+        """A ready-to-paste ``mise use`` command for this candidate.
+
+        It names the registry short name when :attr:`registry_name` is set and
+        the backend string otherwise.
+        """
+        return f"mise use {shlex.quote(self.registry_name or self.backend_string)}"
 
 
 @dataclass(frozen=True)
@@ -126,6 +137,12 @@ class Resolution:
         ``reasons``), ``excluded`` (each with ``backend_string`` and
         ``reason``), ``platform`` (``os-arch`` or ``null``) and ``notes`` (a
         list of text).
+
+        ``command`` is always a string. It names the registry short name for
+        the backend mise itself picks first for a registry entry (so the
+        entry's options, which ``mise registry --json`` omits, apply), and the
+        explicit backend string for every other candidate; ``backend_string``
+        stays the candidate's identity either way.
 
         Returns:
             dict[str, object]: A structure that ``json.dumps`` accepts.
@@ -226,7 +243,9 @@ def _known(backends: dict[str, list[str]], backend_string: str) -> str:
     return next((b for b in backends if _dedupe_key(b) == key), backend_string)
 
 
-def _candidate(backend_string: str, reasons: list[str]) -> Candidate:
+def _candidate(
+    backend_string: str, reasons: list[str], registry_name: str | None = None
+) -> Candidate:
     """Build a candidate, placing it on the tier ladder and flagging legacy.
 
     Returns:
@@ -238,7 +257,9 @@ def _candidate(backend_string: str, reasons: list[str]) -> Candidate:
     )
     legacy = backend in _LEGACY_BACKENDS
     warning = _LEGACY_WARNING.format(backend) if legacy else None
-    return Candidate(backend_string, tuple(reasons), tier, legacy, warning)
+    return Candidate(
+        backend_string, tuple(reasons), tier, legacy, warning, registry_name
+    )
 
 
 def _unusable_reason(candidate: Candidate, platform: Platform) -> str | None:
@@ -284,9 +305,12 @@ class _Findings:
             with the reason.
         skipped: The failure of each skipped step, by step name.
         notes: Remarks from detectors about their own search, without repeats.
+        short_names: The registry short name of each backend string that mise
+            picks first for it, by backend string.
     """
 
     backends: dict[str, list[str]] = field(default_factory=dict)
+    short_names: dict[str, str] = field(default_factory=dict)
     exclusions: list[Exclusion] = field(default_factory=list)
     skipped: dict[str, MibareError] = field(default_factory=dict)
     notes: list[str] = field(default_factory=list)
@@ -312,21 +336,46 @@ def _probe_aqua(repository: Repository, mise: Mise, findings: _Findings) -> None
         findings.exclusions.append(Exclusion(aqua, reason))
 
 
-def _found_backends(repository: Repository, mise: Mise) -> _Findings:
+def _picked_by_mise(backends: tuple[str, ...], target: Platform) -> str | None:
+    """Find the backend mise installs for a registry entry's short name.
+
+    Returns:
+        str | None: The first backend that can run on ``target``, or ``None``.
+    """
+    return next(
+        (b for b in backends if _unusable_reason(_candidate(b, []), target) is None),
+        None,
+    )
+
+
+def _record_entry(findings: _Findings, entry: RegistryEntry, target: Platform) -> None:
+    """Record a registry entry's backends and the one its short name installs.
+
+    The first backend of an entry that can run on ``target`` is the one mise
+    picks for the entry's short name (the registry output is already filtered
+    for the host and the isolated settings), so it is recorded with that name.
+    """
+    backends = findings.backends
+    reason = f"listed in the mise registry as {entry.tool!r}"
+    for backend in entry.backends:
+        reasons = backends.setdefault(_known(backends, backend), [])
+        if reason not in reasons:
+            reasons.append(reason)
+    first = _picked_by_mise(entry.backends, target)
+    if first is not None:
+        _ = findings.short_names.setdefault(_known(backends, first), entry.tool)
+
+
+def _found_backends(repository: Repository, mise: Mise, target: Platform) -> _Findings:
     """Run the registry and aqua steps for ``repository``.
 
     Returns:
         _Findings: The backend strings found and any skipped step.
     """
     findings = _Findings()
-    backends = findings.backends
     for entry in mise.registry():
         if any(_points_at(repository, backend) for backend in entry.backends):
-            reason = f"listed in the mise registry as {entry.tool!r}"
-            for backend in entry.backends:
-                reasons = backends.setdefault(_known(backends, backend), [])
-                if reason not in reasons:
-                    reasons.append(reason)
+            _record_entry(findings, entry, target)
     _probe_aqua(repository, mise, findings)
     return findings
 
@@ -524,8 +573,12 @@ def _rank(
     target: Platform,
     ecosystems: Sequence[Ecosystem],
     language: str | None,
+    short_names: dict[str, str],
 ) -> tuple[tuple[Candidate, ...], tuple[Exclusion, ...]]:
     """Tier, flag and sort the backends, dropping those unusable on ``target``.
+
+    A backend in ``short_names`` is installed by its registry short name, so
+    its registry options apply, and says so in its reasons.
 
     Within a tier, the primary language's backend comes first and the rest
     follow alphabetically by backend string, so the order is deterministic.
@@ -540,7 +593,10 @@ def _rank(
         reasons = list(found_reasons)
         if _is_favoured(backend, ecosystems, language):
             reasons.append(f"{language} is the repository's primary language")
-        candidate = _candidate(backend, reasons)
+        name = short_names.get(backend)
+        if name is not None:
+            reasons.append(_SHORT_NAME_REASON.format(name))
+        candidate = _candidate(backend, reasons, name)
         why_not = _unusable_reason(candidate, target)
         if why_not is None:
             candidates.append(candidate)
@@ -602,7 +658,7 @@ def _gather(
     Returns:
         _Gathered: The candidates, the exclusions and the skipped steps.
     """
-    findings = _found_backends(repository, mise)
+    findings = _found_backends(repository, mise, target)
     if github is not None:
         _require_existing(repository, github)
     _add_github(findings, repository, mise, github, target)
@@ -610,7 +666,9 @@ def _gather(
         findings, repository, github, target, ecosystems
     )
     language = _lookup_language(findings, repository, github, ecosystems)
-    candidates, unusable = _rank(findings.backends, target, ecosystems, language)
+    candidates, unusable = _rank(
+        findings.backends, target, ecosystems, language, findings.short_names
+    )
     exclusions = (*findings.exclusions, *unusable, *undetected)
     return _Gathered(candidates, exclusions, findings.skipped, tuple(findings.notes))
 

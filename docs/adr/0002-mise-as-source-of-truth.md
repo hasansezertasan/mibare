@@ -7,3 +7,4 @@ mibare depends on a `mise` binary for registry reverse lookup (`mise registry --
 - A missing or too-old `mise` is a hard error (exit 2), never auto-installed.
 - `mise registry --json` is filtered by the host platform and is lossy (no per-backend platforms, version ranges or options), so `--platform` only affects the release-asset check and mibare's own tier rules.
 - `mise ls-remote` proves only that a repository exists, not that it can install, so language-package candidates still need the manifest and entrypoint check.
+- Because the registry output omits per-backend options (such as `symlink_bins` for `aws-cli`), which apply only when a tool is installed by its short name, the ready-to-paste command uses the short name for the backend mise itself picks first for a registry entry, and the explicit backend string for every other candidate.

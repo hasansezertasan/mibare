@@ -344,7 +344,7 @@ def test_a_backend_listed_twice_by_one_tool_gives_one_reason() -> None:
 
     (candidate,) = resolution.candidates
     assert candidate.backend_string == "aqua:o/r"
-    assert len(candidate.reasons) == 1
+    assert len([r for r in candidate.reasons if "listed in" in r]) == 1
 
 
 def test_the_target_defaults_to_the_host(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -439,12 +439,13 @@ def test_registry_candidates_carry_reasons_and_a_mise_use_command() -> None:
         - ``BurntSushi/ripgrep`` is resolved.
     Then:
         - Every candidate has a reason naming the registry entry and a
-          ``mise use`` command for its backend string.
+          ``mise use`` command: the registry short name for the backend mise
+          picks first, the explicit backend string for the others.
     """
     resolution = resolve("BurntSushi/ripgrep", FakeMise([RIPGREP]))
 
     assert [c.mise_use for c in resolution.candidates] == [
-        "mise use aqua:BurntSushi/ripgrep",
+        "mise use ripgrep",
         "mise use ubi:BurntSushi/ripgrep",
     ]
     assert all(
@@ -464,9 +465,66 @@ def test_mise_use_quotes_backend_strings_for_the_shell() -> None:
         - The command quotes the backend string.
     """
     backend = "github:BurntSushi/ripgrep[exe=rg]"
-    resolution = resolve("BurntSushi/ripgrep", FakeMise([entry("rg", backend)]))
+    registry = entry("rg", "aqua:BurntSushi/ripgrep", backend)
+    resolution = resolve("BurntSushi/ripgrep", FakeMise([registry]))
 
-    assert resolution.candidates[0].mise_use == f"mise use '{backend}'"
+    explicit = next(c for c in resolution.candidates if c.backend_string == backend)
+    assert explicit.mise_use == f"mise use '{backend}'"
+
+
+def test_the_first_registry_backend_uses_the_short_name_so_options_apply() -> None:
+    """The backend mise picks first for a short name is installed by that name.
+
+    Given:
+        - A registry entry ``aws-cli`` listing an aqua and a github backend.
+    When:
+        - ``aws/aws-cli`` is resolved and converted to a dict.
+    Then:
+        - The first backend's command uses the short name and its reasons say
+          so, while its backend string stays the identity; the second keeps the
+          explicit backend string.
+    """
+    registry = entry("aws-cli", "aqua:aws/aws-cli", "github:aws/aws-cli")
+
+    resolution = resolve("aws/aws-cli", FakeMise([registry]))
+
+    first, second = resolution.candidates
+    assert first.backend_string == "aqua:aws/aws-cli"
+    assert first.mise_use == "mise use aws-cli"
+    assert any("short name" in r and "options" in r for r in first.reasons)
+    assert second.mise_use == "mise use github:aws/aws-cli"
+    assert not any("short name" in reason for reason in second.reasons)
+    data = json.loads(json.dumps(resolution.to_dict()))
+    assert [c["command"] for c in data["candidates"]] == [
+        "mise use aws-cli",
+        "mise use github:aws/aws-cli",
+    ]
+
+
+def test_a_windows_target_skips_asdf_when_picking_the_short_name_backend() -> None:
+    """Mise skips asdf on Windows, so the next backend is the one a short name installs.
+
+    Given:
+        - A registry entry listing an asdf backend before an aqua one.
+    When:
+        - It is resolved for ``windows-x64``.
+    Then:
+        - The aqua candidate gets the short name; the asdf one is excluded.
+    """
+    registry = entry("tool", "asdf:o/r", "aqua:o/r")
+
+    resolution = resolve("o/r", FakeMise([registry]), Platform("windows", "x64"))
+
+    (candidate,) = resolution.candidates
+    assert candidate.mise_use == "mise use tool"
+
+
+def test_an_aqua_probe_alone_keeps_the_explicit_backend_command() -> None:
+    """A candidate with no registry origin never uses a short name."""
+    resolution = resolve("sharkdp/fd", FakeMise([RIPGREP], recipes=["aqua:sharkdp/fd"]))
+
+    assert resolution.candidates[0].mise_use == "mise use aqua:sharkdp/fd"
+    assert not any("short name" in r for r in resolution.candidates[0].reasons)
 
 
 def test_a_resolution_with_no_exclusions_reports_none() -> None:
@@ -516,6 +574,7 @@ def test_to_dict_has_a_stable_shape() -> None:
         "reasons",
     ]
     assert [c["recommended"] for c in candidates] == [True, False]
+    assert candidates[0]["command"] == "mise use ripgrep"
     assert candidates[1]["command"] == "mise use ubi:BurntSushi/ripgrep"
     assert [c["tier"] for c in candidates] == [2, 5]
     assert [c["legacy"] for c in candidates] == [False, True]
@@ -861,10 +920,13 @@ def test_every_registry_entry_for_the_repository_contributes_its_backends() -> N
 
     assert sorted(_backends(resolution)) == ["aqua:o/r", "github:o/r", "ubi:o/r"]
     shared = next(c for c in resolution.candidates if c.backend_string == "aqua:o/r")
-    assert [r for r in shared.reasons if "'tool-" in r] == [
+    assert [r for r in shared.reasons if "listed in" in r] == [
         "listed in the mise registry as 'tool-a'",
         "listed in the mise registry as 'tool-b'",
     ]
+    assert shared.mise_use == "mise use tool-a"
+    other = next(c for c in resolution.candidates if c.backend_string == "github:o/r")
+    assert other.mise_use == "mise use tool-b"
 
 
 @pytest.mark.parametrize(
