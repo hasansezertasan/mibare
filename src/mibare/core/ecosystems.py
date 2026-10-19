@@ -110,6 +110,50 @@ def _detect_python(repository: Repository, github: GitHub) -> Detection:
     )
 
 
+def _autobins_disabled(manifest: dict[str, object]) -> bool:
+    """Say whether ``Cargo.toml`` turns off bin-target auto-discovery.
+
+    Args:
+        manifest: The parsed ``Cargo.toml``.
+
+    Returns:
+        bool: ``True`` when ``[package] autobins`` is ``false``.
+    """
+    package = manifest.get("package")
+    if not isinstance(package, dict):
+        return False
+    return cast("dict[str, object]", package).get("autobins") is False
+
+
+def _cargo_bin_detection(
+    manifest: dict[str, object], repository: Repository, github: GitHub
+) -> Detection:
+    """Decide from a parsed ``Cargo.toml`` whether the crate has a bin target.
+
+    Args:
+        manifest: The parsed ``Cargo.toml``.
+        repository: The repository being resolved.
+        github: The GitHub adapter, for ``src/main.rs``.
+
+    Returns:
+        Detection: ``found`` when the crate has a bin target.
+    """
+    backend_string = f"cargo:{repository.shorthand}"
+    bins = manifest.get("bin")
+    if isinstance(bins, list) and bins:
+        return Detection(backend_string, "Cargo.toml declares a [[bin]] target")
+    if _autobins_disabled(manifest):
+        reason = (
+            "Cargo.toml sets autobins = false and declares no [[bin]] target, "
+            "so src/main.rs is not a bin target"
+        )
+        return Detection(backend_string, reason, found=False)
+    if github.root_file(repository, "src/main.rs") is not None:
+        return Detection(backend_string, "the crate has a src/main.rs bin target")
+    reason = "Cargo.toml declares no [[bin]] target and there is no src/main.rs"
+    return Detection(backend_string, reason, found=False)
+
+
 def _detect_cargo(repository: Repository, github: GitHub) -> Detection:
     """Look for a ``[[bin]]`` table or a ``src/main.rs`` beside ``Cargo.toml``.
 
@@ -122,17 +166,11 @@ def _detect_cargo(repository: Repository, github: GitHub) -> Detection:
         reason = "no Cargo.toml in the repository root"
         return Detection(backend_string, reason, found=False)
     try:
-        data = tomllib.loads(text)
+        manifest = tomllib.loads(text)
     except tomllib.TOMLDecodeError:
         reason = "Cargo.toml in the repository root is not valid TOML"
         return Detection(backend_string, reason, found=False)
-    bins = data.get("bin")
-    if isinstance(bins, list) and bins:
-        return Detection(backend_string, "Cargo.toml declares a [[bin]] target")
-    if github.root_file(repository, "src/main.rs") is not None:
-        return Detection(backend_string, "the crate has a src/main.rs bin target")
-    reason = "Cargo.toml declares no [[bin]] target and there is no src/main.rs"
-    return Detection(backend_string, reason, found=False)
+    return _cargo_bin_detection(manifest, repository, github)
 
 
 def _detect_npm(repository: Repository, github: GitHub) -> Detection:

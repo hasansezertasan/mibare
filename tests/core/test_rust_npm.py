@@ -58,6 +58,35 @@ def test_src_main_rs_gives_a_cargo_candidate() -> None:
     assert any("src/main.rs" in r for r in resolution.candidates[0].reasons)
 
 
+def test_autobins_false_does_not_infer_a_bin_from_src_main_rs() -> None:
+    """``autobins = false`` turns off discovery, so ``src/main.rs`` is no evidence."""
+    manifest = '[package]\nname = "tool"\nautobins = false\n'
+
+    resolution = _resolve({"Cargo.toml": manifest, "src/main.rs": "fn main() {}"})
+
+    assert resolution.candidates == ()
+    assert "autobins" in _excluded(resolution, "cargo:owner/tool")
+
+
+def test_autobins_false_still_honors_a_declared_bin_table() -> None:
+    """A manually declared ``[[bin]]`` target exists whatever ``autobins`` says."""
+    manifest = '[package]\nname = "tool"\nautobins = false\n\n[[bin]]\nname = "tool"\n'
+
+    resolution = _resolve({"Cargo.toml": manifest})
+
+    assert _backends(resolution) == ["cargo:owner/tool"]
+
+
+def test_a_manifest_without_a_package_table_does_not_disable_autobins() -> None:
+    """Only ``[package] autobins = false`` turns discovery off."""
+    resolution = _resolve({
+        "Cargo.toml": "[workspace]\nmembers = []\n",
+        "src/main.rs": "fn main() {}",
+    })
+
+    assert _backends(resolution) == ["cargo:owner/tool"]
+
+
 def test_library_only_crate_gives_no_cargo_candidate() -> None:
     """A crate with neither ``[[bin]]`` nor ``src/main.rs`` is excluded."""
     resolution = _resolve({"Cargo.toml": CARGO_LIB, "src/lib.rs": ""})
