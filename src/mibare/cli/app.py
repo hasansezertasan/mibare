@@ -1,24 +1,26 @@
 """CLI application for the project.
 
-The ``mibare`` command is the single Typer root. Every enabled
-component other than the primary (CLI > GUI > TUI > web > MCP > worker) is hung
-off it as a lazily-imported subcommand — ``mibare interactive``
-(TUI), ``mibare web``, ``mibare mcp``, ... — rather
-than a separate ``mibare-<name>`` console script (see https://hasansezertasan.github.io/copier-pyproject/context/components/#secondary-components-are-subcommands-of-one-console-root-not-separate-scripts).
+``mibare <repo>`` is the whole interface: one command, no subcommands. It is a
+thin wrapper over :func:`mibare.core.resolve.resolve` that parses the
+argument, prints the resolution and maps the outcome onto an exit code.
 """
 # mypy: disable-error-code="misc"
 
 from __future__ import annotations
 
+from typing import Annotated
+
 import typer
 
-from mibare.__metadata__ import PROJECT_NAME
-from mibare.core import app as service
-from mibare.core.logging_setup import get_logger
+from mibare.core.errors import MibareError
+from mibare.core.mise import SubprocessMise
+from mibare.core.resolve import Resolution, resolve
 
-__all__ = ["app", "info", "show_version"]
+__all__ = ["app", "main"]
 
-logger = get_logger()
+EXIT_FOUND = 0
+EXIT_NO_BACKEND = 1
+EXIT_ERROR = 2
 
 app = typer.Typer(
     name="mibare",
@@ -27,64 +29,60 @@ app = typer.Typer(
 )
 
 
-@app.command(name="version")
-def show_version() -> None:
-    """Show the current version number of mibare.
+def _subject(resolution: Resolution) -> str:
+    """Name the repository and the mise registry the answer came from.
 
-    Show the version number:
-        mibare version
+    Args:
+        resolution: The resolution being described.
 
-    Example output:
-        0.1.0
-
-    Raises:
-        typer.Exit: If the package metadata cannot be found.
+    Returns:
+        str: For example ``owner/repo (mise 2026.10.13 registry)``.
     """
-    try:
-        resolved = service.version()
-    except service.MetadataUnavailableError:
-        # An uninstalled or partial package is an expected, user-facing error, so
-        # log without the traceback that logging.exception would add.
-        logger.error("Package metadata not found for %s", PROJECT_NAME)  # noqa: TRY400
-        typer.echo(
-            f"Error: Package '{PROJECT_NAME}' metadata not found. Is the package installed correctly?",  # noqa: E501
-            err=True,
-        )
-        raise typer.Exit(code=1) from None
-    logger.info("Command `version` called.")
-    typer.echo(resolved)
-    logger.info("Version displayed successfully.")
+    mise = f"mise {resolution.mise_version}"
+    return f"{resolution.repository.shorthand} ({mise} registry)"
+
+
+def _render(resolution: Resolution) -> str:
+    """Format a resolution for the terminal.
+
+    Args:
+        resolution: The resolution to show.
+
+    Returns:
+        str: The text to print; the recommendation is marked.
+    """
+    lines = [_subject(resolution)]
+    for index, candidate in enumerate(resolution.candidates):
+        marker = "*" if index == 0 else " "
+        suffix = "  (recommended)" if index == 0 else ""
+        lines.append(f"{marker} {candidate.backend_string}{suffix}")
+    return "\n".join(lines)
 
 
 @app.command()
-def info() -> None:
-    """Display information about the mibare application.
+def main(
+    repository: Annotated[
+        str, typer.Argument(help="A GitHub URL or owner/repo shorthand.")
+    ],
+) -> None:
+    """Recommend which mise backend to install a GitHub repository with.
 
-    Show application information:
-        mibare info
+    Exits 0 when a backend is found, 1 when none is, and 2 on an error such as
+    input that is not a GitHub repository or a missing or too-old mise.
 
-    Example output:
-        Application Version: 0.1.0
-        Python Version: 3.12.0 (CPython)
-        Platform: Darwin
+    Example:
+        mibare BurntSushi/ripgrep
+        mibare https://github.com/BurntSushi/ripgrep
 
     Raises:
-        typer.Exit: If the package metadata cannot be found.
+        typer.Exit: Always, with the exit code describing the outcome.
     """
     try:
-        payload = service.info()
-    except service.MetadataUnavailableError:
-        # An uninstalled or partial package is an expected, user-facing error, so
-        # log without the traceback that logging.exception would add.
-        logger.error("Package metadata not found for %s", PROJECT_NAME)  # noqa: TRY400
-        typer.echo(
-            f"Error: Package '{PROJECT_NAME}' metadata not found. Is the package installed correctly?",  # noqa: E501
-            err=True,
-        )
-        raise typer.Exit(code=1) from None
-    logger.info("Command `info` called.")
-    python = f"{payload['python_version']} ({payload['python_implementation']})"
-    typer.echo(f"Application Version: {payload['application_version']}")
-    typer.echo(f"Python Version: {python}")
-    typer.echo(f"Platform: {payload['platform']}")
-    logger.info("Application information displayed successfully.")
+        resolution = resolve(repository, SubprocessMise())
+    except MibareError as error:
+        typer.echo(f"Error: {error}", err=True)
+        raise typer.Exit(code=EXIT_ERROR) from None
+    if resolution.recommendation is None:
+        typer.echo(f"No backend found for {_subject(resolution)}.")
+        raise typer.Exit(code=EXIT_NO_BACKEND)
+    typer.echo(_render(resolution))

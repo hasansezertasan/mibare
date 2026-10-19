@@ -64,8 +64,15 @@ True
 ### CLI
 
 ```bash
+mibare BurntSushi/ripgrep
+mibare https://github.com/BurntSushi/ripgrep
 mibare --help
 ```
+
+The registry's backends for the repository are printed in registry order, the
+first marked as the recommendation. Exit code 0 means a recommendation was
+found, 1 that no backend was found, and 2 an error (input that is not a GitHub
+repository, or a missing or too-old `mise`; 2026.10.13 or newer is required).
 
 ## Support :heart:
 

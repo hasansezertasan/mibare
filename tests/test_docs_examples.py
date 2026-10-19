@@ -3,11 +3,8 @@
 from __future__ import annotations
 
 import importlib.util
-from importlib.metadata import version
 from pathlib import Path
 from typing import TYPE_CHECKING
-
-from mibare.__metadata__ import PROJECT_NAME
 
 if TYPE_CHECKING:
     from types import ModuleType
@@ -31,9 +28,3 @@ def test_all_documentation_examples_are_importable() -> None:
     assert examples, "docs/examples must contain at least one tested module"
     for path in examples:
         _load_example(path)
-
-
-def test_version_lookup_example_uses_the_installed_distribution() -> None:
-    """The usage-page example resolves the same version as package metadata."""
-    example = _load_example(EXAMPLES_DIR / "version_lookup.py")
-    assert example.version_lookup() == version(PROJECT_NAME)

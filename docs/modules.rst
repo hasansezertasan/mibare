@@ -13,6 +13,14 @@ Core (``mibare.core``)
 
 Always-included infrastructure.
 
+.. automodule:: mibare.core.resolve
+
+.. automodule:: mibare.core.repository
+
+.. automodule:: mibare.core.mise
+
+.. automodule:: mibare.core.errors
+
 .. automodule:: mibare.core.config
 
 .. automodule:: mibare.core.dirs

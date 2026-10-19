@@ -1,36 +1,35 @@
 Usage
 =====
 
-As a library
-------------
-
-Look up the installed distribution version:
-
-.. literalinclude:: examples/version_lookup.py
-   :language: python
-   :caption: examples/version_lookup.py
-
-For short interactive snippets embedded in prose, the ``docs-doctest`` task
-executes ``>>>`` blocks too:
-
-.. doctest::
-
-   >>> from mibare.__metadata__ import PROJECT_NAME
-   >>> PROJECT_NAME
-   'mibare'
-
 As a command-line tool
 ----------------------
 
-To use ``mibare`` as a command-line tool:
+Pass a GitHub URL or ``owner/repo`` shorthand. Trailing slashes, a ``.git``
+suffix and ``www.`` are tolerated:
 
 .. code-block:: sh
 
-   mibare version
-   mibare info
+   mibare BurntSushi/ripgrep
+   mibare https://github.com/BurntSushi/ripgrep
 
-Or invoke it programmatically from Python:
+The mise registry's backends for the repository are printed in registry order,
+with the first marked as the recommendation. ``mibare`` needs a ``mise`` binary
+(2026.10.13 or newer) on ``PATH`` and runs it in an isolated environment, so
+your own mise settings never change the answer. ``GITHUB_TOKEN`` is passed
+through when set.
 
-.. literalinclude:: examples/cli_usage.py
+Exit codes:
+
+* ``0``: a recommendation was found.
+* ``1``: no backend was found.
+* ``2``: an error, such as input that is not a GitHub repository or a missing
+  or too-old ``mise``.
+
+As a library
+------------
+
+``resolve()`` returns the structured candidates that the command prints:
+
+.. literalinclude:: examples/resolve_repository.py
    :language: python
-   :caption: examples/cli_usage.py
+   :caption: examples/resolve_repository.py

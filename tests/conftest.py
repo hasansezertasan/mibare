@@ -7,25 +7,15 @@ component without per-test decoration. Markers are registered in pyproject.toml
 
 Also keeps the Markdown doctest surface to the single root ``README.md``: see
 ``collect_ignore_glob`` below.
-
-Also hosts the ``missing_metadata`` fixture: every component degrades or fails
-differently when the package metadata is unreadable, but they all read it
-through ``core.app``, so one fixture covers every component's error path
-(https://hasansezertasan.github.io/copier-pyproject/context/components/#one-application-payload-in-coreapppy-components-are-adapters-over-it).
 """
 
 from __future__ import annotations
 
-from importlib.metadata import PackageNotFoundError
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-import pytest
-
-from mibare.core import app as service
-
 if TYPE_CHECKING:
-    from importlib.metadata import Distribution
+    import pytest
 
 # ``--doctest-glob=README.md`` (pyproject ``addopts``) matches on the *basename*,
 # so without this every ``tests/**/README.md`` -- fixture notes, a subdirectory
@@ -62,32 +52,3 @@ def pytest_collection_modifyitems(
         component = rel.parts[0] if len(rel.parts) > 1 else "core"
         if component in _COMPONENT_DIRS:
             item.add_marker(component)
-
-
-class _MissingDistribution:
-    """Stub whose ``from_name`` always reports missing package metadata."""
-
-    @staticmethod
-    def from_name(name: str) -> Distribution:
-        """Fail the way an uninstalled or partial package does.
-
-        Args:
-            name: The distribution name that cannot be found.
-
-        Raises:
-            PackageNotFoundError: Always.
-        """
-        raise PackageNotFoundError(name)
-
-
-@pytest.fixture
-def missing_metadata(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Make the shared app service behave as if the package were not installed.
-
-    Every component reads the version through ``core.app``, so patching it here
-    reaches the CLI's exit-1 path, the web app's 503 responses, the MCP tool's
-    error text and the GUI/TUI "unknown" degradation alike.
-
-    ``monkeypatch`` reverses the patch at teardown, so nothing is yielded.
-    """
-    monkeypatch.setattr(service, "Distribution", _MissingDistribution)
