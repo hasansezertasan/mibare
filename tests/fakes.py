@@ -95,6 +95,23 @@ class FakeGitHub:
             raise self._error
         return self._assets
 
+    def list_dir(self, repository: Repository, path: str) -> tuple[str, ...]:
+        """List the entries under ``path`` implied by the fixture file paths.
+
+        Returns:
+            tuple[str, ...]: Entry names in first-seen order; empty when none.
+        """
+        del repository
+        if self._error is not None:
+            raise self._error
+        prefix = f"{path.strip('/')}/" if path.strip("/") else ""
+        names = (
+            name.removeprefix(prefix).split("/", 1)[0]
+            for name in self._files
+            if name.startswith(prefix)
+        )
+        return tuple(dict.fromkeys(names))
+
     def primary_language(self, repository: Repository) -> str | None:
         """Return the fixture language, or fail with the fixture error.
 

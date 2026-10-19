@@ -149,3 +149,39 @@ def test_network_errors_raise_unavailable() -> None:
 
     with pytest.raises(GitHubUnavailableError, match="offline"):
         _ = api.primary_language(REPO)
+
+
+def test_list_dir_returns_entry_names() -> None:
+    """A directory path lists the names of its entries."""
+    body = [{"name": "a", "type": "dir"}, {"name": "b", "type": "file"}]
+    path = "/repos/BurntSushi/ripgrep/contents/cmd"
+    transport = FakeTransport({path: (200, body)})
+
+    assert GitHubApi(transport, token=None).list_dir(REPO, "cmd") == ("a", "b")
+
+
+def test_list_dir_is_empty_when_absent_or_a_file() -> None:
+    """A missing path and a file both list nothing."""
+    file_path = "/repos/BurntSushi/ripgrep/contents/go.mod"
+    transport = FakeTransport({file_path: (200, {"type": "file"})})
+    api = GitHubApi(transport, token=None)
+
+    assert api.list_dir(REPO, "cmd") == ()
+    assert api.list_dir(REPO, "go.mod") == ()
+
+
+def test_list_dir_root_uses_the_contents_root() -> None:
+    """An empty path lists the repository root."""
+    path = "/repos/BurntSushi/ripgrep/contents"
+    transport = FakeTransport({path: (200, [{"name": "main.go"}])})
+
+    assert GitHubApi(transport, token=None).list_dir(REPO, "") == ("main.go",)
+
+
+def test_list_dir_failure_is_github_unavailable() -> None:
+    """A non-404 error status raises ``GitHubUnavailableError``."""
+    path = "/repos/BurntSushi/ripgrep/contents/cmd"
+    transport = FakeTransport({path: (500, {})})
+
+    with pytest.raises(GitHubUnavailableError):
+        _ = GitHubApi(transport, token=None).list_dir(REPO, "cmd")

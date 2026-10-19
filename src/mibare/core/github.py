@@ -60,6 +60,10 @@ class GitHub(Protocol):
         """Return the asset names of the latest release; empty when none."""
         raise NotImplementedError
 
+    def list_dir(self, repository: Repository, path: str) -> tuple[str, ...]:
+        """Return a directory's entry names; empty when it is absent."""
+        raise NotImplementedError
+
     def primary_language(self, repository: Repository) -> str | None:
         """Return the repository's primary language, or ``None``."""
         raise NotImplementedError
@@ -168,6 +172,27 @@ class GitHubApi:
             return base64.b64decode(content).decode()
         except (binascii.Error, UnicodeDecodeError):
             return None
+
+    def list_dir(self, repository: Repository, path: str) -> tuple[str, ...]:
+        """List the entry names of a directory in the repository.
+
+        Args:
+            repository: The repository to look up.
+            path: The directory path, such as ``cmd``; empty for the root.
+
+        Returns:
+            tuple[str, ...]: The entry names; empty when the path is absent
+                or is not a directory.
+        """
+        body = self._get(f"/repos/{repository.shorthand}/contents/{path}".rstrip("/"))
+        if not isinstance(body, list):
+            return ()
+        names = (
+            cast("dict[str, object]", item).get("name")
+            for item in cast("list[object]", body)
+            if isinstance(item, dict)
+        )
+        return tuple(name for name in names if isinstance(name, str))
 
     def _get(self, path: str) -> object:
         """GET ``path`` and decode the JSON body.

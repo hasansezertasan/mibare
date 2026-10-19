@@ -9,8 +9,11 @@ tie-break and the reasons.
 from __future__ import annotations
 
 import sys
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Protocol, cast
+
+from mibare.core.detection import Detection
+from mibare.core.go_entrypoints import detect_go
 
 if sys.version_info >= (3, 11):
     import tomllib  # pyright: ignore[reportUnreachable]
@@ -18,25 +21,12 @@ else:
     import tomli as tomllib
 
 if TYPE_CHECKING:
+    from collections.abc import Sequence
+
     from mibare.core.github import GitHub
     from mibare.core.repository import Repository
 
-__all__ = ["ECOSYSTEMS", "PYPI", "Detection", "Detector", "Ecosystem"]
-
-
-@dataclass(frozen=True)
-class Detection:
-    """What a detector concluded about one repository.
-
-    Attributes:
-        backend_string: The backend string considered, as in ``pypi:owner/repo``.
-        reason: Why it is offered (when ``found``) or why it is left out.
-        found: Whether the repository has an entrypoint for this ecosystem.
-    """
-
-    backend_string: str
-    reason: str
-    found: bool = field(default=True, kw_only=True)
+__all__ = ["ECOSYSTEMS", "GO", "PYPI", "Detection", "Detector", "Ecosystem"]
 
 
 class Detector(Protocol):
@@ -46,8 +36,10 @@ class Detector(Protocol):
     skipped-step note.
     """
 
-    def __call__(self, repository: Repository, github: GitHub) -> Detection:
-        """Return the detection for ``repository``."""
+    def __call__(
+        self, repository: Repository, github: GitHub
+    ) -> Detection | Sequence[Detection]:
+        """Return the detection for ``repository``, or one per binary."""
         raise NotImplementedError
 
 
@@ -109,6 +101,7 @@ def _detect_python(repository: Repository, github: GitHub) -> Detection:
 
 
 PYPI = Ecosystem("pypi", frozenset({"Python"}), _detect_python)
+GO = Ecosystem("go", frozenset({"Go"}), detect_go)
 
 #: The registered ecosystems. Add a line here to support another one.
-ECOSYSTEMS: tuple[Ecosystem, ...] = (PYPI,)
+ECOSYSTEMS: tuple[Ecosystem, ...] = (PYPI, GO)
