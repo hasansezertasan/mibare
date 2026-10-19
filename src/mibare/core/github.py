@@ -38,6 +38,7 @@ _API = "https://api.github.com"
 _TIMEOUT_SECONDS = 20
 _HTTP_OK = 200
 _HTTP_NOT_FOUND = 404
+_HTTP_CONFLICT = 409
 
 
 @dataclass(frozen=True)
@@ -264,7 +265,11 @@ class GitHubApi:
                 whether GitHub truncated the listing; empty when the
                 repository has no tree.
         """
-        body = self._get(f"/repos/{repository.shorthand}/git/trees/HEAD?recursive=1")
+        # GitHub answers 409 Conflict from the git database of an empty repository.
+        body = self._get(
+            f"/repos/{repository.shorthand}/git/trees/HEAD?recursive=1",
+            empty_statuses=(_HTTP_CONFLICT,),
+        )
         if not isinstance(body, dict):
             return RepositoryFiles()
         fields = cast("dict[str, object]", body)
@@ -285,20 +290,23 @@ class GitHubApi:
             cast("tuple[str, ...]", paths), fields.get("truncated") is True
         )
 
-    def _get(self, path: str) -> object:
+    def _get(self, path: str, empty_statuses: tuple[int, ...] = ()) -> object:
         """GET ``path`` and decode the JSON body.
 
         Args:
             path: The API path, starting with ``/``.
+            empty_statuses: Statuses besides 404 that mean "nothing here" for
+                this request.
 
         Returns:
-            object: The decoded JSON, or ``None`` when GitHub answers 404.
+            object: The decoded JSON, or ``None`` when GitHub answers 404 or
+                one of ``empty_statuses``.
 
         Raises:
             GitHubUnavailableError: If the answer is not readable JSON.
         """
-        response = self._fetch(path)
-        if response.status == _HTTP_NOT_FOUND:
+        response = self._fetch(path, empty_statuses)
+        if response.status == _HTTP_NOT_FOUND or response.status in empty_statuses:
             return None
         try:
             return cast("object", json.loads(response.body))
@@ -306,14 +314,15 @@ class GitHubApi:
             message = f"GitHub sent an unreadable answer for {path}."
             raise GitHubUnavailableError(message) from exc
 
-    def _fetch(self, path: str) -> HttpResponse:
-        """Request ``path``, accepting only 200 and 404 answers.
+    def _fetch(self, path: str, extra_statuses: tuple[int, ...] = ()) -> HttpResponse:
+        """Request ``path``, accepting only 200, 404 and ``extra_statuses``.
 
         Args:
             path: The API path, starting with ``/``.
+            extra_statuses: Further statuses this request accepts.
 
         Returns:
-            HttpResponse: The response, with status 200 or 404.
+            HttpResponse: The response, with an accepted status.
 
         Raises:
             GitHubUnavailableError: If the network fails or GitHub answers
@@ -332,7 +341,7 @@ class GitHubApi:
             # ValueError covers UnicodeError and urllib's "unknown url type".
             message = f"Could not reach GitHub: {exc}"
             raise GitHubUnavailableError(message) from exc
-        if response.status not in {_HTTP_OK, _HTTP_NOT_FOUND}:
+        if response.status not in {_HTTP_OK, _HTTP_NOT_FOUND, *extra_statuses}:
             message = f"GitHub answered HTTP {response.status} for {path}."
             raise GitHubUnavailableError(message)
         return response

@@ -260,6 +260,26 @@ def test_list_files_of_an_empty_repository_is_empty() -> None:
     assert files.paths == ()
 
 
+def test_list_files_of_a_repository_with_no_commits_is_empty() -> None:
+    """GitHub answers 409 Conflict from the tree endpoint of an empty repository."""
+    body = {"message": "Git Repository is empty."}
+    transport = FakeTransport({TREE_PATH: (409, body)})
+
+    files = GitHubApi(transport, token=None).list_files(REPO)
+
+    assert files.paths == ()
+    assert not files.truncated
+
+
+def test_a_409_from_another_endpoint_is_still_unavailable() -> None:
+    """Only the tree request treats 409 as an empty listing."""
+    path = "/repos/BurntSushi/ripgrep/releases/latest"
+    api = GitHubApi(FakeTransport({path: (409, {})}), token=None)
+
+    with pytest.raises(GitHubUnavailableError):
+        _ = api.latest_release_assets(REPO)
+
+
 def test_list_files_failure_is_github_unavailable() -> None:
     """A non-404 error status raises ``GitHubUnavailableError``."""
     transport = FakeTransport({TREE_PATH: (500, {})})

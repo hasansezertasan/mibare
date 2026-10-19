@@ -23,7 +23,7 @@ from mibare.core.mise import RegistryEntry, SubprocessMise
 from mibare.core.platform import Platform
 from mibare.core.repository import Repository
 from mibare.core.resolve import Candidate, Resolution
-from tests.fakes import FakeGitHub, FakeMise
+from tests.fakes import FakeGitHub, FakeMise, FakeTransport
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -387,6 +387,23 @@ def test_the_cli_builds_the_real_adapters(
     _ = runner.invoke(cli.app, ["BurntSushi/ripgrep"])
 
     assert [type(adapter) for adapter in seen] == [SubprocessMise, GitHubApi]
+
+
+def test_an_empty_repository_exits_1_not_2(
+    runner: CliRunner, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """GitHub answers 409 for the tree of an empty repository: no backend, exit 1."""
+    transport = FakeTransport({
+        "/repos/owner/empty": (200, {"language": "Go"}),
+        "/repos/owner/empty/git/trees/HEAD?recursive=1": (409, {}),
+    })
+    monkeypatch.setattr(cli, "SubprocessMise", FakeMise)
+    monkeypatch.setattr(cli, "GitHubApi", lambda: GitHubApi(transport, token=None))
+
+    result: Result = runner.invoke(cli.app, ["owner/empty"])
+
+    assert result.exit_code == 1
+    assert "no backend found" in result.output.lower()
 
 
 def test_an_unusable_network_with_no_results_exits_2(

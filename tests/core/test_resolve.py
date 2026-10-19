@@ -1079,3 +1079,17 @@ def test_resolving_through_the_real_adapter_reports_a_missing_repository() -> No
     assert [url for url, _ in transport.requests] == [
         "https://api.github.com/repos/owner/doesnotexist"
     ]
+
+
+def test_an_empty_go_repository_has_no_recommendation_and_no_error() -> None:
+    """GitHub's 409 for an empty repository's tree is 'no backend', not a failure."""
+    transport = FakeTransport({
+        "/repos/owner/empty": (200, {"language": "Go"}),
+        "/repos/owner/empty/git/trees/HEAD?recursive=1": (409, {}),
+    })
+
+    resolution = resolve(
+        "owner/empty", FakeMise(), HOST, github=GitHubApi(transport, token=None)
+    )
+
+    assert resolution.recommendation is None
