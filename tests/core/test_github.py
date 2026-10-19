@@ -118,6 +118,25 @@ def test_root_file_accepts_a_repo_relative_path() -> None:
     assert api.root_file(REPO, "src/main.rs") == "fn main() {}"
 
 
+@pytest.mark.parametrize(
+    ("name", "encoded"),
+    [
+        ("my dir/a b.toml", "my%20dir/a%20b.toml"),
+        ("c#/f?x.go", "c%23/f%3Fx.go"),
+        ("ünder/日本.go", "%C3%BCnder/%E6%97%A5%E6%9C%AC.go"),
+    ],
+    ids=["space", "hash-and-question-mark", "non-ascii"],
+)
+def test_root_file_percent_encodes_each_path_segment(name: str, encoded: str) -> None:
+    """Awkward characters are escaped while ``/`` still separates segments."""
+    transport = FakeTransport()
+
+    _ = GitHubApi(transport, token=None).root_file(REPO, name)
+
+    url = transport.requests[0][0]
+    assert url == f"https://api.github.com/repos/BurntSushi/ripgrep/contents/{encoded}"
+
+
 def test_token_is_sent_when_given() -> None:
     """An explicit token becomes a bearer Authorization header."""
     transport = FakeTransport()

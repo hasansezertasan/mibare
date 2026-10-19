@@ -13,6 +13,7 @@ import http.client
 import json
 import os
 import urllib.error
+import urllib.parse
 import urllib.request
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Protocol, cast
@@ -209,7 +210,8 @@ class GitHubApi:
             str | None: The decoded contents, or ``None`` when the file is
                 absent, is a directory or is not text.
         """
-        body = self._get(f"/repos/{repository.shorthand}/contents/{name}")
+        quoted = urllib.parse.quote(name, safe="/")
+        body = self._get(f"/repos/{repository.shorthand}/contents/{quoted}")
         if not isinstance(body, dict):
             return None
         fields = cast("dict[str, object]", body)
