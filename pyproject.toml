@@ -237,7 +237,9 @@ branch = true
 # Match `_version.py` wherever it resolves: `src/...` in editable dev installs and
 # `.../site-packages/...` when tox/CI installs the built (non-editable) wheel. A
 # `src/**`-only pattern silently misses the installed copy and reports it at 0%.
-omit = ["*/_version.py"]
+# `tests/real_mise/*` is opt-in (`pytest -m real_mise`) and skipped in CI, so it
+# cannot be measured there; omitting it keeps the gate about what CI runs.
+omit = ["*/_version.py", "*/tests/real_mise/*"]
 parallel = true
 # Store data-file paths relative to the project root so `.coverage` files produced
 # on different runners/OSes merge in the `coverage-combine` CI job without
@@ -270,10 +272,14 @@ exclude_lines = [
   "if __name__ == .__main__.:",
   "if TYPE_CHECKING:",
 ]
+# `Protocol` method bodies are `raise NotImplementedError` stubs that never run.
+exclude_also = [
+  "raise NotImplementedError",
+]
 fail_under = 99
 # Patterns match both the `src/` (editable) and installed (`site-packages`)
 # layouts (see [tool.coverage.run] omit).
-omit = ["*/_version.py"]
+omit = ["*/_version.py", "*/tests/real_mise/*"]
 show_missing = true
 skip_covered = true
 
