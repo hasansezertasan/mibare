@@ -44,20 +44,28 @@ def _real_mise_requested(config: pytest.Config) -> bool:
     return re.search(r"(?<!not )\breal_mise\b", expression) is not None
 
 
+def _skip_real_mise_unless_requested(
+    config: pytest.Config, items: list[pytest.Item]
+) -> None:
+    """Skip the opt-in real-mise tests unless ``-m`` asks for them.
+
+    They are skipped here rather than deselected through ``addopts``, because any
+    ``-m`` given on the command line (CI passes one) replaces an ``addopts`` ``-m``
+    and would silently run them.
+    """
+    if _real_mise_requested(config):
+        return
+    skip = pytest.mark.skip(reason="opt-in: run with `pytest -m real_mise`")
+    for item in items:
+        if item.get_closest_marker("real_mise"):
+            item.add_marker(skip)
+
+
 def pytest_collection_modifyitems(
     config: pytest.Config, items: list[pytest.Item]
 ) -> None:
-    """Skip opt-in real-mise tests, then mark each test with its component name.
-
-    The real-mise tests are skipped here rather than deselected through
-    ``addopts``, because any ``-m`` given on the command line (CI passes one)
-    replaces an ``addopts`` ``-m`` and would silently run them.
-    """
-    if not _real_mise_requested(config):
-        skip = pytest.mark.skip(reason="opt-in: run with `pytest -m real_mise`")
-        for item in items:
-            if item.get_closest_marker("real_mise"):
-                item.add_marker(skip)
+    """Skip opt-in tests, then mark each test with its component name."""
+    _skip_real_mise_unless_requested(config, items)
     tests_root = Path(str(config.rootpath)) / "tests"
     for item in items:
         try:
