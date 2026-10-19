@@ -130,11 +130,15 @@ def test_module_path_comes_from_go_mod() -> None:
     assert _backends(resolution) == ["go:example.com/vanity/tool"]
 
 
-def test_missing_module_line_falls_back_to_the_repository() -> None:
-    """Without a readable ``module`` line the GitHub path is used."""
-    resolution = _go({"go.mod": "go 1.22\n", "main.go": MAIN})
+def test_root_go_mod_without_a_module_line_is_excluded() -> None:
+    """A root ``go.mod`` with no ``module`` line never falls back to GitHub."""
+    resolution = _go({"go.mod": "go 1.22\n", "main.go": MAIN, "cmd/x/main.go": MAIN})
 
-    assert _backends(resolution) == ["go:github.com/owner/tool"]
+    assert resolution.candidates == ()
+    (excluded,) = (
+        x for x in resolution.exclusions if x.backend_string.startswith("go:")
+    )
+    assert excluded.reason == "go.mod has no module directive"
 
 
 def test_package_main_with_comments_is_detected() -> None:

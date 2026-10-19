@@ -209,8 +209,9 @@ def detect_go(
 ) -> list[Detection]:
     """Look for ``package main`` at the root and under ``cmd/<name>``.
 
-    The module path comes from ``go.mod``. Without a ``go.mod`` the
-    repository's GitHub path stands in for it, and the reason says so.
+    The module path comes from ``go.mod``. Without a root ``go.mod`` the
+    repository's GitHub path stands in for it, and the reason says so. A root
+    ``go.mod`` with no ``module`` directive is an exclusion, not a fallback.
 
     Returns:
         list[Detection]: One ``found`` detection per entrypoint, or a single
@@ -227,6 +228,9 @@ def detect_go(
     )
     fallback = f"github.com/{repository.shorthand}"
     declared = None if go_mod is None else _declared_module(go_mod)
+    if go_mod is not None and declared is None:
+        reason = "go.mod has no module directive"
+        return [Detection(f"go:{fallback}", reason, found=False, notes=reader.note)]
     module = fallback if declared is None else declared
     suffix = (
         ""
