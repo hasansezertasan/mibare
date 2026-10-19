@@ -3,13 +3,17 @@
 from __future__ import annotations
 
 import base64
+import io
 import json
+import urllib.error
+import urllib.request
+from email.message import Message
 from typing import TYPE_CHECKING
 
 import pytest
 
 from mibare.core.errors import GitHubUnavailableError
-from mibare.core.github import GitHubApi, HttpResponse
+from mibare.core.github import GitHubApi, HttpResponse, urllib_transport
 from mibare.core.repository import Repository
 
 if TYPE_CHECKING:
@@ -196,3 +200,119 @@ def test_list_dir_failure_is_github_unavailable() -> None:
 
     with pytest.raises(GitHubUnavailableError):
         _ = GitHubApi(transport, token=None).list_dir(REPO, "cmd")
+
+
+def _file_body(content: object, kind: str = "file") -> dict[str, object]:
+    """Build a contents-API body for a root file.
+
+    Returns:
+        dict[str, object]: The body.
+    """
+    return {"type": kind, "encoding": "base64", "content": content}
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        _file_body("aGk=", kind="dir"),
+        _file_body(None),
+        _file_body("!!!not base64!!!"),
+        _file_body(base64.b64encode(b"\xff\xfe").decode()),
+    ],
+    ids=["not-a-file", "no-content", "bad-base64", "not-utf8"],
+)
+def test_root_file_is_none_when_the_contents_are_not_text(
+    body: dict[str, object],
+) -> None:
+    """A directory, a missing payload or undecodable bytes give ``None``."""
+    path = "/repos/BurntSushi/ripgrep/contents/pyproject.toml"
+    transport = FakeTransport({path: (200, body)})
+
+    assert GitHubApi(transport, token=None).root_file(REPO, "pyproject.toml") is None
+
+
+def test_a_release_without_an_assets_list_has_no_assets() -> None:
+    """A release answer whose ``assets`` is not a list gives no assets."""
+    route = "/repos/BurntSushi/ripgrep/releases/latest"
+    transport = FakeTransport({route: (200, {"assets": "none"})})
+
+    assert GitHubApi(transport, token=None).latest_release_assets(REPO) == ()
+
+
+def test_an_unreadable_answer_raises_unavailable() -> None:
+    """A 200 whose body is not JSON is reported as an unavailable GitHub."""
+
+    def transport(url: str, headers: Mapping[str, str]) -> HttpResponse:
+        del url, headers
+        return HttpResponse(200, b"<html>not json</html>")
+
+    with pytest.raises(GitHubUnavailableError, match="unreadable"):
+        _ = GitHubApi(transport, token=None).primary_language(REPO)
+
+
+class _Reply:
+    """A stand-in for the object ``urlopen`` returns."""
+
+    status = 200
+
+    def __init__(self) -> None:
+        """Start open, with a fixed body."""
+        self.closed = False
+        self.body = b"{}"
+
+    def read(self) -> bytes:
+        """Return a fixed body.
+
+        Returns:
+            bytes: The body.
+        """
+        return self.body
+
+    def close(self) -> None:
+        """Record the close."""
+        self.closed = True
+
+
+def test_the_urllib_transport_returns_the_reply_and_closes_it(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A successful request returns its status and body and releases the reply."""
+    reply = _Reply()
+    seen: list[urllib.request.Request] = []
+
+    def urlopen(request: urllib.request.Request, timeout: float) -> _Reply:
+        del timeout
+        seen.append(request)
+        return reply
+
+    monkeypatch.setattr(urllib.request, "urlopen", urlopen)
+
+    response = urllib_transport("https://api.github.com/x", {"Accept": "a/b"})
+
+    assert response == HttpResponse(200, b"{}")
+    assert reply.closed
+    assert seen[0].full_url == "https://api.github.com/x"
+    assert seen[0].get_header("Accept") == "a/b"
+
+
+def test_the_urllib_transport_returns_error_statuses_as_responses(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An HTTP error status is returned, not raised, so 404 can mean absent."""
+    errors: list[urllib.error.HTTPError] = []
+
+    def urlopen(request: urllib.request.Request, timeout: float) -> _Reply:
+        del timeout
+        errors.append(
+            urllib.error.HTTPError(
+                request.full_url, 404, "Not Found", Message(), io.BytesIO(b"nope")
+            )
+        )
+        raise errors[0]
+
+    monkeypatch.setattr(urllib.request, "urlopen", urlopen)
+
+    response = urllib_transport("https://api.github.com/x", {})
+
+    errors[0].close()
+    assert response == HttpResponse(404, b"nope")

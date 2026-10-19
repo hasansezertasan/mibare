@@ -83,12 +83,18 @@ class FakeGitHub:
         language: str | None = None,
         files: Mapping[str, str] | None = None,
         error: Exception | None = None,
+        language_error: Exception | None = None,
     ) -> None:
-        """Set the fixture release assets, language and root files, or an error."""
+        """Set the fixture release assets, language and root files, or errors.
+
+        ``error`` fails every call except the language lookup; ``language_error``
+        fails only ``primary_language``.
+        """
         self._assets = tuple(assets)
         self._language = language
         self._files = dict(files or {})
         self._error = error
+        self._language_error = language_error
         self.calls = 0
 
     def latest_release_assets(self, repository: Repository) -> tuple[str, ...]:
@@ -110,8 +116,6 @@ class FakeGitHub:
             tuple[str, ...]: Entry names in first-seen order; empty when none.
         """
         del repository
-        if self._error is not None:
-            raise self._error
         prefix = f"{path.strip('/')}/" if path.strip("/") else ""
         names = (
             name.removeprefix(prefix).split("/", 1)[0]
@@ -121,14 +125,14 @@ class FakeGitHub:
         return tuple(dict.fromkeys(names))
 
     def primary_language(self, repository: Repository) -> str | None:
-        """Return the fixture language, or fail with the fixture error.
+        """Return the fixture language, or fail with the fixture language error.
 
         Returns:
             str | None: The fixture language.
         """
         del repository
-        if self._error is not None:
-            raise self._error
+        if self._language_error is not None:
+            raise self._language_error
         return self._language
 
     def root_file(self, repository: Repository, name: str) -> str | None:

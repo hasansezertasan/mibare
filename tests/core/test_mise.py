@@ -245,6 +245,8 @@ def test_too_old_mise_stops_before_reading_the_registry() -> None:
         FakeRunner(registry="not json"),
         FakeRunner(registry='{"short": "x"}'),
         FakeRunner(registry='[{"short": "x"}]'),
+        FakeRunner(registry="[1]"),
+        FakeRunner(registry='[{"short": "x", "backends": ["aqua:o/x", 2]}]'),
         FakeRunner(error=subprocess.TimeoutExpired("mise", 60)),
         FakeRunner(error=PermissionError("denied")),
     ],
@@ -254,6 +256,8 @@ def test_too_old_mise_stops_before_reading_the_registry() -> None:
         "bad-json",
         "not-a-list",
         "no-backends",
+        "item-not-an-object",
+        "non-string-backend",
         "timeout",
         "not-executable",
     ],
@@ -340,3 +344,12 @@ def test_any_other_probe_failure_is_a_mise_error_not_an_absent_recipe(
 
     with pytest.raises(MiseError):
         _ = mise.recipe_exists("aqua:o/r")
+
+
+def test_the_version_is_read_from_mise_only_once() -> None:
+    """A second request reuses the recorded version instead of running mise."""
+    runner = FakeRunner()
+    adapter = SubprocessMise(run=runner)
+
+    assert adapter.version() == adapter.version()
+    assert len(runner.calls) == 1

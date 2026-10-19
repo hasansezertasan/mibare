@@ -325,6 +325,25 @@ def test_asdf_is_kept_for_a_non_windows_target() -> None:
     assert _backends(resolution) == ["aqua:o/r", "asdf:o/r"]
 
 
+def test_a_backend_listed_twice_by_one_tool_gives_one_reason() -> None:
+    """Repeating a backend in a registry entry does not repeat its reason.
+
+    Given:
+        - A registry entry listing the same backend string twice.
+    When:
+        - The repository is resolved.
+    Then:
+        - The candidate appears once with a single registry reason.
+    """
+    registry = entry("tool", "aqua:o/r", "aqua:o/r")
+
+    resolution = resolve("o/r", FakeMise([registry]))
+
+    (candidate,) = resolution.candidates
+    assert candidate.backend_string == "aqua:o/r"
+    assert len(candidate.reasons) == 1
+
+
 def test_the_target_defaults_to_the_host(monkeypatch: pytest.MonkeyPatch) -> None:
     """Without a platform the host is the target and no note is added.
 

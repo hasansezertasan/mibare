@@ -202,3 +202,28 @@ def test_tie_break_does_not_depend_on_registration_order() -> None:
 def test_pypi_is_registered_by_default() -> None:
     """The default registry includes the Python ecosystem."""
     assert PYPI in ECOSYSTEMS
+
+
+def test_a_failed_language_lookup_keeps_the_alphabetical_order_and_says_so() -> None:
+    """GitHub failing only the language lookup is a skipped-step note.
+
+    Given:
+        - Three ecosystems that all find an entrypoint.
+    When:
+        - GitHub fails the primary-language request.
+    Then:
+        - The candidates are still returned, alphabetically, and a note names
+          the skipped language-package step.
+    """
+    github = FakeGitHub(
+        files={"pyproject.toml": PYPROJECT_WITH_SCRIPTS},
+        language_error=GitHubUnavailableError("could not reach GitHub"),
+    )
+
+    resolution = resolve(TOOL, FakeMise(), LINUX_X64, github=github, ecosystems=FAKES)
+
+    assert _backends(resolution) == ALPHABETICAL
+    assert any(
+        "language-package" in note and "skipped" in note.lower()
+        for note in resolution.notes
+    )

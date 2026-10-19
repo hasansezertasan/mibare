@@ -138,3 +138,17 @@ def test_setup_logger_skips_file_logging_without_home(
         isinstance(handler, RotatingFileHandler) for handler in configured.handlers
     )
     assert "console-only" in capsys.readouterr().err
+
+
+def test_get_logger_returns_the_cached_project_logger(
+    isolated_project_logger: logging.Logger,
+) -> None:
+    """``get_logger`` hands out the configured project logger, once."""
+    logging_setup.get_logger.cache_clear()
+    try:
+        first = logging_setup.get_logger()
+
+        assert first is isolated_project_logger
+        assert logging_setup.get_logger() is first
+    finally:
+        logging_setup.get_logger.cache_clear()

@@ -55,7 +55,7 @@ def _skip_real_mise_unless_requested(
     ``-m`` given on the command line (CI passes one) replaces an ``addopts`` ``-m``
     and would silently run them.
     """
-    if _real_mise_requested(config):
+    if _real_mise_requested(config):  # pragma: no cover - only the opt-in run
         return
     skip = pytest.mark.skip(reason="opt-in: run with `pytest -m real_mise`")
     for item in items:
