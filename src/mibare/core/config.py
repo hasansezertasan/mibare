@@ -33,7 +33,7 @@ class Settings:
     Stdlib-only fallback used when pydantic-settings is not enabled. Each field
     is overridable via an environment variable named after the uppercased
     project name (dashes normalized to underscores) plus the field, for
-    example ``MY_PROJECT_LOG_LEVEL``.
+    example ``MIBARE_LOG_LEVEL``.
     """
 
     # ``log_level`` is consumed by ``core/logging_setup.py``.
