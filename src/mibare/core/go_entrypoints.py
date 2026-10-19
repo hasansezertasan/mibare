@@ -240,6 +240,35 @@ def _entrypoint(
     return f"go:{module}{subpath}", f"{where} declares package main{suffix}"
 
 
+def _resolve_entrypoints(
+    reader: _Reader,
+    mains: set[str],
+    paths: frozenset[str],
+    root: tuple[str, str],
+    *,
+    bad_root: bool,
+) -> list[tuple[str, str]]:
+    """Resolve the backend string and reason of every command in ``mains``.
+
+    A root ``go.mod`` without a ``module`` directive only invalidates the
+    commands that belong to the root module; a nested ``go.mod`` is its own
+    module root, so its commands still resolve.
+
+    Returns:
+        list[tuple[str, str]]: The backend string and reason per resolvable
+            command, the root first and then ``cmd/<name>`` in name order.
+    """
+    owned = [
+        directory
+        for directory in sorted(mains, key=lambda d: (bool(d), d))
+        if not bad_root or _nearest_module(directory, paths) is not None
+    ]
+    # Resolve every entrypoint before the caller reads the note: go.mod reads
+    # can spend the budget, so the note is only complete once they have all run.
+    resolved = (_entrypoint(reader, directory, paths, root) for directory in owned)
+    return list(filter(None, resolved))
+
+
 def detect_go(
     repository: Repository, github: GitHub, platform: Platform
 ) -> list[Detection]:
@@ -247,11 +276,14 @@ def detect_go(
 
     The module path comes from ``go.mod``. Without a root ``go.mod`` the
     repository's GitHub path stands in for it, and the reason says so. A root
-    ``go.mod`` with no ``module`` directive is an exclusion, not a fallback.
+    ``go.mod`` with no ``module`` directive is an exclusion, not a fallback: it
+    excludes only the commands of the root module, while commands under a
+    nested ``go.mod`` still resolve.
 
     Returns:
         list[Detection]: One ``found`` detection per entrypoint, or a single
-            exclusion when the module has none.
+            exclusion when the module has none; with a bad root ``go.mod``,
+            the exclusion follows any nested entrypoints.
     """
     listing = github.list_files(repository)
     reader = _Reader(repository, github)
@@ -264,29 +296,26 @@ def detect_go(
     )
     fallback = f"github.com/{repository.shorthand}"
     declared = None if go_mod is None else _declared_module(go_mod)
-    if go_mod is not None and declared is None:
-        reason = "go.mod has no module directive"
-        return [Detection(f"go:{fallback}", reason, found=False, notes=reader.note)]
+    bad_root = go_mod is not None and declared is None
     module = fallback if declared is None else declared
     suffix = (
         ""
         if go_mod is not None
         else f" (no go.mod in the repository root; assumed {fallback})"
     )
-    paths = frozenset(listing.paths)
     mains = _find_mains(reader, _go_directories(listing.paths, platform), platform)
-    entrypoints = (
-        _entrypoint(reader, directory, paths, (module, suffix))
-        for directory in sorted(mains, key=lambda d: (bool(d), d))
+    resolved = _resolve_entrypoints(
+        reader, mains, frozenset(listing.paths), (module, suffix), bad_root=bad_root
     )
-    # Resolve every entrypoint first: later go.mod reads can spend the budget,
-    # so the note is only complete once they have all run.
-    resolved = list(filter(None, entrypoints))
-    if resolved:
+    found = [Detection(b, r, notes=reader.note) for b, r in resolved]
+    if bad_root:
+        reason = "go.mod has no module directive"
         return [
-            Detection(backend, reason, notes=reader.note)
-            for backend, reason in resolved
+            *found,
+            Detection(f"go:{fallback}", reason, found=False, notes=reader.note),
         ]
+    if found:
+        return found
     reason = "no package main in the root or under cmd/"
     if go_mod is None:
         reason = "no go.mod in the repository root and " + reason

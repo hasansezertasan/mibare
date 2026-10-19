@@ -141,6 +141,35 @@ def test_root_go_mod_without_a_module_line_is_excluded() -> None:
     assert excluded.reason == "go.mod has no module directive"
 
 
+def test_a_nested_module_survives_a_root_go_mod_without_a_module_line() -> None:
+    """A nested ``go.mod`` is its own module root, so a bad parent cannot hide it."""
+    files = {
+        "go.mod": "go 1.22\n",
+        "main.go": MAIN,
+        "cmd/tool/go.mod": "module example.com/nested/tool\n",
+        "cmd/tool/main.go": MAIN,
+    }
+
+    resolution = _go(files)
+
+    assert _backends(resolution) == ["go:example.com/nested/tool"]
+    (excluded,) = (
+        x for x in resolution.exclusions if x.backend_string.startswith("go:")
+    )
+    assert excluded.reason == "go.mod has no module directive"
+
+
+def test_a_bad_root_go_mod_with_only_root_owned_commands_is_just_excluded() -> None:
+    """Commands that belong to the bad root module are excluded, once."""
+    files = {"go.mod": "go 1.22\n", "main.go": MAIN, "cmd/a/main.go": MAIN}
+
+    resolution = _go(files)
+
+    assert resolution.candidates == ()
+    excluded = [x for x in resolution.exclusions if x.backend_string.startswith("go:")]
+    assert [x.reason for x in excluded] == ["go.mod has no module directive"]
+
+
 def test_package_main_with_comments_is_detected() -> None:
     """Comments before the package clause do not hide ``package main``."""
     text = "// Command tool.\n/* block\ncomment */\n\npackage main // x\n"
