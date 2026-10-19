@@ -312,6 +312,32 @@ def test_a_cmd_directory_with_its_own_go_mod_uses_that_module_path() -> None:
     assert any("own module" in reason for reason in nested.reasons)
 
 
+def test_an_intervening_module_boundary_names_the_package_path() -> None:
+    """``cmd/go.mod`` makes ``cmd/tool`` the package ``<that module>/tool``."""
+    files = {
+        "go.mod": GO_MOD,
+        "cmd/go.mod": "module example.com/commands\n",
+        "cmd/tool/main.go": MAIN,
+        "cmd/other/main.go": MAIN,
+    }
+    github = FakeGitHub(files=files)
+
+    resolution = resolve(TOOL, FakeMise(), LINUX_X64, github=github)
+
+    assert _backends(resolution) == [
+        "go:example.com/commands/other",
+        "go:example.com/commands/tool",
+    ]
+    assert github.file_reads.count("cmd/go.mod") == 1
+
+
+def test_an_intervening_go_mod_without_a_module_line_is_skipped() -> None:
+    """An unreadable boundary above a command leaves it unnamed."""
+    files = {"go.mod": GO_MOD, "cmd/go.mod": "go 1.22\n", "cmd/tool/main.go": MAIN}
+
+    assert _go(files).candidates == ()
+
+
 def test_a_nested_go_mod_without_a_module_line_is_skipped() -> None:
     """Without a readable module path the nested entrypoint cannot be named."""
     files = {"go.mod": GO_MOD, "cmd/tool/go.mod": "go 1.22\n", "cmd/tool/main.go": MAIN}

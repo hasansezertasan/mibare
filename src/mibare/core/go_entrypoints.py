@@ -2,8 +2,9 @@
 
 A Go repository installs with ``go:<module path>``, plus ``/cmd/<name>`` for an
 entrypoint that lives in a subdirectory, so one candidate is offered per
-entrypoint. A ``cmd/<name>`` directory with its own ``go.mod`` is a separate
-module, so its declared module path is the whole backend string.
+entrypoint. A ``go.mod`` in ``cmd/<name>`` or in ``cmd`` starts a separate
+module: the nearest one above the command supplies the module path, and the
+command's directory relative to it is the subpath.
 
 Only files built for the target platform count (see
 :mod:`mibare.core.go_constraints`).
@@ -58,6 +59,7 @@ class _Reader:
         self._github = github
         self._remaining = MAX_FILE_READS
         self.limits: list[str] = []
+        self._modules: dict[str, str | None] = {}
 
     def limit(self, reason: str) -> None:
         """Record why the search was cut short, once."""
@@ -76,6 +78,18 @@ class _Reader:
             return None
         self._remaining -= 1
         return self._github.root_file(self._repository, path)
+
+    def module(self, path: str) -> str | None:
+        """Read the ``go.mod`` at ``path`` once and return its module path.
+
+        Returns:
+            str | None: The declared path, or ``None`` when the file cannot be
+                read or declares none.
+        """
+        if path not in self._modules:
+            text = self.read(path)
+            self._modules[path] = None if text is None else _declared_module(text)
+        return self._modules[path]
 
     @property
     def note(self) -> tuple[str, ...]:
@@ -172,14 +186,31 @@ def _declared_module(go_mod: str) -> str | None:
     return match.group(1) if match else None
 
 
+def _nearest_module(directory: str, paths: frozenset[str]) -> str | None:
+    """Find the nearest ancestor directory below the root that holds a ``go.mod``.
+
+    Returns:
+        str | None: ``directory`` or its closest ancestor with a ``go.mod``, or
+            ``None`` when the root module is the nearest one.
+    """
+    parts = directory.split("/") if directory else []
+    for end in range(len(parts), 0, -1):
+        candidate = "/".join(parts[:end])
+        if f"{candidate}/go.mod" in paths:
+            return candidate
+    return None
+
+
 def _entrypoint(
-    reader: _Reader, directory: str, paths: tuple[str, ...], root: tuple[str, str]
+    reader: _Reader, directory: str, paths: frozenset[str], root: tuple[str, str]
 ) -> tuple[str, str] | None:
     """Name the backend string and reason for the ``package main`` in ``directory``.
 
-    A command with its own ``go.mod`` crosses a module boundary: the root
+    A command inside a nested module crosses a module boundary: the root
     module path plus the subpath would name a package that does not exist, so
-    that module's declared path is the whole backend string.
+    the nearest ``go.mod`` above the command (the command's own directory or
+    an ancestor such as ``cmd``) declares the path, and the command's
+    directory relative to it is the subpath.
 
     Args:
         reader: The shared read budget.
@@ -192,13 +223,18 @@ def _entrypoint(
             when the nested module cannot be read or declares no path.
     """
     module, suffix = root
-    nested = f"{directory}/go.mod"
-    if directory and nested in paths:
-        go_mod = reader.read(nested)
-        declared = None if go_mod is None else _declared_module(go_mod)
+    boundary = _nearest_module(directory, paths)
+    if boundary is not None:
+        declared = reader.module(f"{boundary}/go.mod")
         if declared is None:
             return None
-        return f"go:{declared}", f"{directory} declares package main in its own module"
+        relative = directory.removeprefix(boundary).strip("/")
+        subpath = f"/{relative}" if relative else ""
+        where = "its own module" if not relative else f"the module {declared}"
+        return (
+            f"go:{declared}{subpath}",
+            f"{directory} declares package main in {where}",
+        )
     subpath = f"/{directory}" if directory else ""
     where = directory or "the root"
     return f"go:{module}{subpath}", f"{where} declares package main{suffix}"
@@ -237,9 +273,10 @@ def detect_go(
         if go_mod is not None
         else f" (no go.mod in the repository root; assumed {fallback})"
     )
+    paths = frozenset(listing.paths)
     mains = _find_mains(reader, _go_directories(listing.paths, platform), platform)
     entrypoints = (
-        _entrypoint(reader, directory, listing.paths, (module, suffix))
+        _entrypoint(reader, directory, paths, (module, suffix))
         for directory in sorted(mains, key=lambda d: (bool(d), d))
     )
     found = [
