@@ -39,12 +39,11 @@ class Settings:
     Stdlib-only fallback used when pydantic-settings is not enabled. Each field
     is overridable via an environment variable named after the uppercased
     project name (dashes normalized to underscores) plus the field, for
-    example ``MY_PROJECT_LOG_LEVEL``.
+    example ``MIBARE_LOG_LEVEL``.
     """
 
-    # Example settings - replace or extend these with your project's own.
     # ``log_level`` is consumed by ``core/logging_setup.py``; ``debug`` and
-    # ``config_dir`` are illustrative placeholders not yet wired into anything.
+    # ``config_dir`` are not read by any runtime code yet.
     debug: bool = field(default_factory=lambda: _env("DEBUG", "").lower() in _TRUTHY)
     log_level: str = field(default_factory=lambda: _env("LOG_LEVEL", "INFO"))
     config_dir: Path = field(
