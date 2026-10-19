@@ -1,4 +1,4 @@
-"""Tests for Go file selection by file name and ``//go:build`` constraint."""
+"""Tests for Go file selection by file name and build constraints."""
 
 from __future__ import annotations
 
@@ -121,4 +121,95 @@ def test_the_first_build_line_wins() -> None:
     """Go reads one ``//go:build`` line; extra ones are ignored."""
     source = "//go:build linux\n//go:build windows\npackage main\n"
 
+    assert constraint_matches(source, LINUX_X64) is True
+
+
+@pytest.mark.parametrize(
+    ("line", "platform", "expected"),
+    [
+        ("linux", LINUX_X64, True),
+        ("linux", WINDOWS_X64, False),
+        ("!windows", LINUX_X64, True),
+        ("!windows", WINDOWS_X64, False),
+        ("linux darwin", MACOS_ARM64, True),
+        ("linux darwin", WINDOWS_X64, False),
+        ("linux,amd64", LINUX_X64, True),
+        ("linux,arm64", LINUX_X64, False),
+        ("linux,!arm64 windows", LINUX_X64, True),
+        ("linux,arm64 windows,amd64", LINUX_X64, False),
+        ("windows,amd64 linux,amd64", LINUX_X64, True),
+        ("unix", MACOS_ARM64, True),
+        ("ignore", LINUX_X64, False),
+        ("!ignore", LINUX_X64, True),
+        ("gc", LINUX_X64, True),
+        ("go1.18", LINUX_X64, True),
+    ],
+)
+def test_legacy_plus_build_lines_are_evaluated_for_the_platform(
+    line: str, platform: Platform, *, expected: bool
+) -> None:
+    """Spaces are OR, commas are AND, ``!`` negates, tags as in ``//go:build``."""
+    source = f"// +build {line}\n\npackage main\n"
+
+    assert constraint_matches(source, platform) is expected
+
+
+@pytest.mark.parametrize(
+    ("lines", "platform", "expected"),
+    [
+        (("linux darwin", "amd64"), LINUX_X64, True),
+        (("linux darwin", "arm64"), LINUX_X64, False),
+        (("windows", "amd64"), LINUX_X64, False),
+    ],
+)
+def test_multiple_plus_build_lines_are_anded(
+    lines: tuple[str, ...], platform: Platform, *, expected: bool
+) -> None:
+    """Each ``// +build`` line must hold."""
+    header = "".join(f"// +build {line}\n" for line in lines)
+
+    assert constraint_matches(f"{header}\npackage main\n", platform) is expected
+
+
+def test_go_build_wins_over_plus_build() -> None:
+    """When both forms exist, the legacy line is ignored."""
+    source = "//go:build linux\n// +build windows\n\npackage main\n"
+
+    assert constraint_matches(source, LINUX_X64) is True
+    assert constraint_matches(source, WINDOWS_X64) is False
+
+
+def test_plus_build_after_a_license_comment_still_applies() -> None:
+    """Comment lines and blank lines may precede the ``// +build`` line."""
+    source = "// Copyright.\n\n// +build windows\n\npackage main\n"
+
+    assert constraint_matches(source, LINUX_X64) is False
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        "// +build windows\npackage main\n",
+        "package main\n\n// +build windows\n",
+        "/* c */\n\n// +build windows\n\npackage main\n",
+        "// +build windows\n",
+    ],
+)
+def test_plus_build_outside_the_header_is_not_a_constraint(source: str) -> None:
+    """Go needs a blank line before the package clause, and only reads the header."""
+    assert constraint_matches(source, LINUX_X64) is True
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        "// +build\n\npackage main\n",
+        "// +build !!linux\n\npackage main\n",
+        "// +build linux,\n\npackage main\n",
+        "// +build @\n\npackage main\n",
+        "// +build windows\n// +build @\n\npackage main\n",
+    ],
+)
+def test_an_unparsable_plus_build_line_includes_the_file(source: str) -> None:
+    """A legacy constraint that does not parse leaves the file in."""
     assert constraint_matches(source, LINUX_X64) is True

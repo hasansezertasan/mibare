@@ -9,7 +9,12 @@ Tags are true when they name the target GOOS or GOARCH, are ``unix`` on a Unix
 target, are ``gc`` or a ``go1.N`` release tag. Every other tag, such as a
 custom build tag or ``cgo``, counts as false. A constraint that does not parse
 leaves the file in, since leaving a file out wrongly hides an entrypoint.
-Legacy ``// +build`` lines are not read.
+
+Files with legacy ``// +build`` lines and no ``//go:build`` line are filtered by
+those too: options separated by spaces are OR, terms separated by commas are
+AND, ``!`` negates, and several lines are AND-ed. As in Go, the lines count
+only in the header, before a blank line that precedes the package clause. When
+both forms exist, ``//go:build`` wins.
 """
 
 from __future__ import annotations
@@ -43,6 +48,8 @@ _GO_OS = {"macos": "darwin"}
 _GO_ARCH = {"x64": "amd64"}
 
 _BUILD_LINE = re.compile(r"//go:build[ \t]+(.*)")
+_PLUS_BUILD_LINE = re.compile(r"//[ \t]*\+build(?:[ \t]+(.*))?")
+_PLUS_BUILD_TERM = re.compile(r"!?[\w.]+")
 _TOKEN = re.compile(r"\s*(\|\||&&|!|\(|\)|[\w.]+)")
 _RELEASE_TAG = re.compile(r"go1\.\d+")
 
@@ -109,6 +116,55 @@ def _header_constraint(source: str) -> str | None:
     """
     matches = (_BUILD_LINE.fullmatch(line) for line in _header_comments(source))
     return next((m.group(1).strip() for m in matches if m), None)
+
+
+def _constraint_block(source: str) -> list[str]:
+    """Find the header lines Go reads build constraints from.
+
+    That is the run of ``//`` comment lines and blank lines at the top of the
+    file, cut after its last blank line: a comment that touches the package
+    clause is documentation, not a constraint.
+
+    Returns:
+        list[str]: The stripped lines of the run, ending at its last blank line.
+    """
+    run: list[str] = []
+    end = 0
+    for raw in source.splitlines():
+        line = raw.strip()
+        if line and not line.startswith("//"):
+            break
+        run.append(line)
+        if not line:
+            end = len(run)
+    return run[:end]
+
+
+def _legacy_constraint(source: str) -> str | None:
+    """Turn the ``// +build`` lines of the header into one ``//go:build`` expression.
+
+    Returns:
+        str | None: The expression, or ``None`` when there are no such lines.
+
+    Raises:
+        ValueError: If a line has no options or an option has a malformed term.
+    """
+    matches = (_PLUS_BUILD_LINE.fullmatch(line) for line in _constraint_block(source))
+    lines = [(match.group(1) or "").split() for match in matches if match]
+    if not lines:
+        return None
+    clauses: list[str] = []
+    for options in lines:
+        if not options:
+            message = "a // +build line has no options"
+            raise ValueError(message)
+        groups = [option.split(",") for option in options]
+        if not all(_PLUS_BUILD_TERM.fullmatch(t) for terms in groups for t in terms):
+            message = f"malformed term in // +build line {' '.join(options)!r}"
+            raise ValueError(message)
+        any_of = " || ".join(f"({' && '.join(terms)})" for terms in groups)
+        clauses.append(f"({any_of})")
+    return " && ".join(clauses)
 
 
 def _tokens(expression: str) -> list[str]:
@@ -255,7 +311,10 @@ class _Evaluator:
 
 
 def constraint_matches(source: str, platform: Platform) -> bool:
-    """Say whether a file's ``//go:build`` line includes it for ``platform``.
+    """Say whether a file's build constraint includes it for ``platform``.
+
+    The ``//go:build`` line decides; a file without one is judged by its legacy
+    ``// +build`` lines.
 
     Args:
         source: The file's text.
@@ -265,10 +324,10 @@ def constraint_matches(source: str, platform: Platform) -> bool:
         bool: The constraint's value; ``True`` when the file has none or the
             constraint does not parse.
     """
-    expression = _header_constraint(source)
-    if expression is None:
-        return True
     try:
+        expression = _header_constraint(source) or _legacy_constraint(source)
+        if expression is None:
+            return True
         return _Evaluator(_tokens(expression), platform).evaluate()
     except ValueError:
         return True
