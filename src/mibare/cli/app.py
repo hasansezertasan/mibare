@@ -74,7 +74,7 @@ def _candidate_lines(candidate: Candidate, *, recommended: bool) -> list[str]:
     """
     marker = "*" if recommended else " "
     suffix = "  (recommended)" if recommended else ""
-    tier = f"  [tier {candidate.tier}]" if candidate.tier is not None else ""
+    tier = f"  [tier {candidate.tier}]"
     lines = [f"{marker} {candidate.backend_string}{tier}{suffix}"]
     lines.extend(f"    - {reason}" for reason in candidate.reasons)
     if candidate.warning:

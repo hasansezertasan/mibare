@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import shlex
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, NamedTuple
 
 from mibare.core.assets import matching_assets
 from mibare.core.ecosystems import ECOSYSTEMS, Detection, Ecosystem
@@ -58,14 +58,14 @@ class Candidate:
         reasons: Short explanations of why it is a candidate; each resolution
             step that finds the backend string appends its own.
         tier: Position on mise's preference ladder, 1 (packslip) to 5 (plugins);
-            lower is better. ``None`` until ranking assigns one.
+            lower is better. Defaults to the lowest tier.
         legacy: Whether the backend is a legacy backend (asdf, vfox, ubi).
         warning: Why the candidate is discouraged, or ``None``.
     """
 
     backend_string: str
     reasons: tuple[str, ...] = ()
-    tier: int | None = None
+    tier: int = _LOWEST_TIER
     legacy: bool = False
     warning: str | None = None
 
@@ -120,11 +120,11 @@ class Resolution:
         The keys, in order: ``schema_version`` (int), ``repository``
         (``owner/repo``), ``mise_version``, ``recommendation`` (the first
         candidate's backend string, or ``null``), ``candidates`` (best first,
-        each with ``backend_string``, ``recommended``, ``tier`` (int or
-        ``null``), ``legacy`` (bool), ``warning`` (text or ``null``),
-        ``command`` and ``reasons``), ``excluded`` (each with
-        ``backend_string`` and ``reason``), ``platform`` (``os-arch`` or
-        ``null``) and ``notes`` (a list of text).
+        each with ``backend_string``, ``recommended``, ``tier`` (int),
+        ``legacy`` (bool), ``warning`` (text or ``null``), ``command`` and
+        ``reasons``), ``excluded`` (each with ``backend_string`` and
+        ``reason``), ``platform`` (``os-arch`` or ``null``) and ``notes`` (a
+        list of text).
 
         Returns:
             dict[str, object]: A structure that ``json.dumps`` accepts.
@@ -137,19 +137,19 @@ class Resolution:
             "recommendation": top.backend_string if top else None,
             "candidates": [
                 {
-                    "backend_string": c.backend_string,
-                    "recommended": c is top,
-                    "tier": c.tier,
-                    "legacy": c.legacy,
-                    "warning": c.warning,
-                    "command": c.mise_use,
-                    "reasons": list(c.reasons),
+                    "backend_string": candidate.backend_string,
+                    "recommended": candidate is top,
+                    "tier": candidate.tier,
+                    "legacy": candidate.legacy,
+                    "warning": candidate.warning,
+                    "command": candidate.mise_use,
+                    "reasons": list(candidate.reasons),
                 }
-                for c in self.candidates
+                for candidate in self.candidates
             ],
             "excluded": [
-                {"backend_string": x.backend_string, "reason": x.reason}
-                for x in self.exclusions
+                {"backend_string": exclusion.backend_string, "reason": exclusion.reason}
+                for exclusion in self.exclusions
             ],
             "platform": self.platform.label if self.platform else None,
             "notes": list(self.notes),
@@ -283,12 +283,12 @@ def _found_backends(repository: Repository, mise: Mise) -> _Findings:
         _Findings: The backend strings found and any skipped step.
     """
     findings = _Findings()
-    found = findings.backends
+    backends = findings.backends
     for entry in mise.registry():
         if any(_points_at(repository, backend) for backend in entry.backends):
             reason = f"listed in the mise registry as {entry.tool!r}"
             for backend in entry.backends:
-                reasons = found.setdefault(backend, [])
+                reasons = backends.setdefault(backend, [])
                 if reason not in reasons:
                     reasons.append(reason)
     _probe_aqua(repository, mise, findings)
@@ -355,14 +355,21 @@ def _run_detectors(
         tuple[list[tuple[Ecosystem, Detection]], GitHubUnavailableError | None]:
             The detections that completed and the last failure, if any.
     """
-    outcomes = [(eco, _detect_one(eco, repository, github)) for eco in ecosystems]
-    results = [
-        (eco, detection)
-        for eco, o in outcomes
-        if not isinstance(o, GitHubUnavailableError)
-        for detection in o
+    outcomes = [
+        (ecosystem, _detect_one(ecosystem, repository, github))
+        for ecosystem in ecosystems
     ]
-    failures = [o for _, o in outcomes if isinstance(o, GitHubUnavailableError)]
+    results = [
+        (ecosystem, detection)
+        for ecosystem, outcome in outcomes
+        if not isinstance(outcome, GitHubUnavailableError)
+        for detection in outcome
+    ]
+    failures = [
+        outcome
+        for _, outcome in outcomes
+        if isinstance(outcome, GitHubUnavailableError)
+    ]
     return results, failures[-1] if failures else None
 
 
@@ -398,11 +405,11 @@ def _primary_language(
 
 
 def _offer(
-    found: dict[str, list[str]], hits: list[tuple[Ecosystem, Detection]]
+    backends: dict[str, list[str]], detections: list[tuple[Ecosystem, Detection]]
 ) -> None:
     """Add the detected backends and the reasons their entrypoints were found."""
-    for _, detection in hits:
-        found.setdefault(detection.backend_string, []).append(detection.reason)
+    for _, detection in detections:
+        backends.setdefault(detection.backend_string, []).append(detection.reason)
 
 
 def _add_language_packages(
@@ -421,13 +428,13 @@ def _add_language_packages(
     if github is None:
         return ()
     results, failure = _run_detectors(repository, github, ecosystems)
-    _offer(findings.backends, [(eco, d) for eco, d in results if d.found])
-    misses = tuple(
+    _offer(findings.backends, [(ecosystem, d) for ecosystem, d in results if d.found])
+    undetected = tuple(
         Exclusion(d.backend_string, d.reason) for _, d in results if not d.found
     )
     if failure is not None:
         findings.skipped["language-package"] = failure
-    return misses
+    return undetected
 
 
 def _is_favoured(
@@ -465,12 +472,12 @@ def _lookup_language(
         return None
     language, failure = _primary_language(repository, github)
     if failure is not None:
-        findings.skipped.setdefault("language-package", failure)
+        _ = findings.skipped.setdefault("language-package", failure)
     return language
 
 
 def _rank(
-    found: dict[str, list[str]],
+    backends: dict[str, list[str]],
     target: Platform,
     ecosystems: Sequence[Ecosystem],
     language: str | None,
@@ -486,7 +493,7 @@ def _rank(
     """
     candidates: list[Candidate] = []
     exclusions: list[Exclusion] = []
-    for backend, found_reasons in found.items():
+    for backend, found_reasons in backends.items():
         reasons = list(found_reasons)
         if _is_favoured(backend, ecosystems, language):
             reasons.append(f"{language} is the repository's primary language")
@@ -498,12 +505,26 @@ def _rank(
             exclusions.append(Exclusion(backend, why_not))
     candidates.sort(
         key=lambda c: (
-            c.tier or _LOWEST_TIER,
+            c.tier,
             not _is_favoured(c.backend_string, ecosystems, language),
             c.backend_string,
         )
     )
     return tuple(candidates), tuple(exclusions)
+
+
+class _Gathered(NamedTuple):
+    """The outcome of the ladder's steps.
+
+    Attributes:
+        candidates: The ranked candidates, best first.
+        exclusions: The backend strings considered and left out.
+        skipped: The failure of each skipped step, by step name.
+    """
+
+    candidates: tuple[Candidate, ...]
+    exclusions: tuple[Exclusion, ...]
+    skipped: dict[str, MibareError]
 
 
 def _gather(
@@ -512,20 +533,19 @@ def _gather(
     github: GitHub | None,
     target: Platform,
     ecosystems: Sequence[Ecosystem],
-) -> tuple[tuple[Candidate, ...], tuple[Exclusion, ...], dict[str, MibareError]]:
+) -> _Gathered:
     """Run the ladder's steps and rank what they found.
 
     Returns:
-        tuple: The candidates, the exclusions and the failure of each skipped
-            step by step name.
+        _Gathered: The candidates, the exclusions and the skipped steps.
     """
     findings = _found_backends(repository, mise)
     _add_github(findings, repository, mise, github, target)
-    misses = _add_language_packages(findings, repository, github, ecosystems)
+    undetected = _add_language_packages(findings, repository, github, ecosystems)
     language = _lookup_language(findings, repository, github, ecosystems)
     candidates, unusable = _rank(findings.backends, target, ecosystems, language)
-    exclusions = (*findings.exclusions, *unusable, *misses)
-    return candidates, exclusions, findings.skipped
+    exclusions = (*findings.exclusions, *unusable, *undetected)
+    return _Gathered(candidates, exclusions, findings.skipped)
 
 
 def _try_host_platform() -> Platform | None:
@@ -573,8 +593,8 @@ def resolve(
     """
     parsed = parse_repository(repository)
     if platform is None:
-        host: Platform | None = host_platform()
-        target = host
+        target = host_platform()
+        host: Platform | None = target
     else:
         host, target = _try_host_platform(), platform
     mise_version = mise.version()
