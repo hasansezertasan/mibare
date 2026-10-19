@@ -300,23 +300,30 @@ def _run_detectors(
             The detections that completed and the last failure, if any.
     """
     outcomes = [(eco, _detect_one(eco, repository, github)) for eco in ecosystems]
-    results = [(eco, o) for eco, o in outcomes if isinstance(o, Detection)]
+    results = [
+        (eco, detection)
+        for eco, o in outcomes
+        if not isinstance(o, GitHubUnavailableError)
+        for detection in o
+    ]
     failures = [o for _, o in outcomes if isinstance(o, GitHubUnavailableError)]
     return results, failures[-1] if failures else None
 
 
 def _detect_one(
     ecosystem: Ecosystem, repository: Repository, github: GitHub
-) -> Detection | GitHubUnavailableError:
+) -> tuple[Detection, ...] | GitHubUnavailableError:
     """Run one detector, returning a GitHub failure instead of raising it.
 
     Returns:
-        Detection | GitHubUnavailableError: The detection or the failure.
+        tuple[Detection, ...] | GitHubUnavailableError: The detections (one
+            per binary for a multi-binary repository) or the failure.
     """
     try:
-        return ecosystem.detect(repository, github)
+        detected = ecosystem.detect(repository, github)
     except GitHubUnavailableError as error:
         return error
+    return (detected,) if isinstance(detected, Detection) else tuple(detected)
 
 
 def _primary_language(

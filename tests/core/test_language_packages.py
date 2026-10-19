@@ -53,7 +53,7 @@ def test_pyproject_without_scripts_gives_no_pypi_candidate() -> None:
     """A library-only pyproject is excluded, with the reason recorded."""
     github = FakeGitHub(files={"pyproject.toml": PYPROJECT_LIBRARY})
 
-    resolution = resolve(TOOL, FakeMise(), LINUX_X64, github=github)
+    resolution = resolve(TOOL, FakeMise(), LINUX_X64, github=github, ecosystems=(PYPI,))
 
     assert resolution.candidates == ()
     (excluded,) = (
@@ -86,7 +86,7 @@ def test_malformed_pyproject_is_no_candidate_with_a_visible_reason() -> None:
     """Broken TOML does not crash; it is an exclusion that says so."""
     github = FakeGitHub(files={"pyproject.toml": "[project\nscripts = ="})
 
-    resolution = resolve(TOOL, FakeMise(), LINUX_X64, github=github)
+    resolution = resolve(TOOL, FakeMise(), LINUX_X64, github=github, ecosystems=(PYPI,))
 
     assert resolution.candidates == ()
     (excluded,) = (
