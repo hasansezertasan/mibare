@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import importlib
+import json
 from typing import TYPE_CHECKING
 
 import pytest
@@ -399,6 +400,38 @@ def test_an_unusable_network_with_no_results_exits_2(
 
     assert result.exit_code == 2
     assert "could not reach GitHub" in result.output
+
+
+def test_platform_and_json_report_the_platform_and_notes(
+    runner: CliRunner, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """``--platform`` with ``--json`` puts the target and notes in the JSON.
+
+    Given:
+        - A host that differs from the requested platform and fake adapters.
+    When:
+        - ``mibare --platform windows-x64 --json`` runs.
+    Then:
+        - The JSON names ``windows-x64`` and carries the differing-host note.
+    """
+    registry = [RegistryEntry("rg", ("aqua:BurntSushi/ripgrep",))]
+    monkeypatch.setattr(
+        "mibare.core.resolve.host_platform", lambda: Platform("linux", "x64")
+    )
+    monkeypatch.setattr(cli, "SubprocessMise", lambda: FakeMise(registry))
+    monkeypatch.setattr(cli, "GitHubApi", FakeGitHub)
+
+    result: Result = runner.invoke(
+        cli.app, ["--platform", "windows-x64", "--json", "BurntSushi/ripgrep"]
+    )
+
+    assert result.exit_code == 0, result.output
+    data = json.loads(result.output)
+    assert data["platform"] == "windows-x64"
+    assert data["recommendation"] == "aqua:BurntSushi/ripgrep"
+    assert len(data["notes"]) == 1
+    assert "windows-x64" in data["notes"][0]
+    assert "linux-x64" in data["notes"][0]
 
 
 def test_an_unexpected_exception_exits_2_not_1(
