@@ -907,3 +907,44 @@ def test_the_primary_language_leads_among_registry_language_packages() -> None:
     resolution = resolve("o/r", FakeMise([registry]), LINUX_X64, github=github)
 
     assert _backends(resolution) == ["aqua:o/r", "pypi:o-r", "cargo:github.com/o/r"]
+
+
+def _unsupported_host() -> Platform:
+    """Fail like ``host_platform()`` does on an unsupported host.
+
+    Raises:
+        InvalidPlatformError: Always.
+    """
+    message = "Unsupported host platform Plan9-mips; pass --platform os-arch."
+    raise InvalidPlatformError(message)
+
+
+def test_an_explicit_platform_is_honored_on_an_unsupported_host(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Resolve for the given platform when the host cannot be detected.
+
+    Given:
+        - A host that is not a supported platform.
+    When:
+        - A repository is resolved with an explicit platform.
+    Then:
+        - It resolves for that platform and notes that the host is unknown.
+    """
+    monkeypatch.setattr("mibare.core.resolve.host_platform", _unsupported_host)
+
+    resolution = resolve("BurntSushi/ripgrep", FakeMise([RIPGREP]), LINUX_X64)
+
+    assert resolution.platform == LINUX_X64
+    assert resolution.recommendation is not None
+    assert any("host" in note and "detect" in note for note in resolution.notes)
+
+
+def test_no_platform_on_an_unsupported_host_still_raises(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Without an explicit platform the host must be detectable."""
+    monkeypatch.setattr("mibare.core.resolve.host_platform", _unsupported_host)
+
+    with pytest.raises(InvalidPlatformError, match="pass --platform"):
+        _ = resolve("BurntSushi/ripgrep", FakeMise([RIPGREP]))

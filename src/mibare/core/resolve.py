@@ -8,7 +8,12 @@ from typing import TYPE_CHECKING
 
 from mibare.core.assets import matching_assets
 from mibare.core.ecosystems import ECOSYSTEMS, Detection, Ecosystem
-from mibare.core.errors import GitHubUnavailableError, MibareError, MiseError
+from mibare.core.errors import (
+    GitHubUnavailableError,
+    InvalidPlatformError,
+    MibareError,
+    MiseError,
+)
 from mibare.core.platform import Platform, host_platform
 from mibare.core.repository import Repository, parse_repository
 
@@ -213,12 +218,18 @@ def _unusable_reason(candidate: Candidate, platform: Platform) -> str | None:
     return None
 
 
-def _platform_notes(target: Platform, host: Platform) -> tuple[str, ...]:
-    """Note when the target differs from the host.
+def _platform_notes(target: Platform, host: Platform | None) -> tuple[str, ...]:
+    """Note when the target differs from the host, or the host is unknown.
 
     Returns:
         tuple[str, ...]: One note, or none when the platforms are equal.
     """
+    if host is None:
+        note = (
+            f"Target platform {target.label}; the host platform could not be "
+            "detected, so registry data may not match it."
+        )
+        return (note,)
     if target == host:
         return ()
     note = (
@@ -517,6 +528,18 @@ def _gather(
     return candidates, exclusions, findings.skipped
 
 
+def _try_host_platform() -> Platform | None:
+    """Detect the host platform for the host-versus-target note.
+
+    Returns:
+        Platform | None: The host, or ``None`` when it cannot be detected.
+    """
+    try:
+        return host_platform()
+    except InvalidPlatformError:
+        return None
+
+
 def resolve(
     repository: str,
     mise: Mise,
@@ -543,10 +566,17 @@ def resolve(
         The first failure (``GitHubUnavailableError`` or ``MiseError``) is
         raised instead when a step failed and no step found a candidate, so
         the answer does not read as "no backend".
+
+        An ``InvalidPlatformError`` is raised when no ``platform`` is given
+        and the host is not a supported platform; an explicit ``platform``
+        needs no host detection.
     """
     parsed = parse_repository(repository)
-    host = host_platform()
-    target = platform or host
+    if platform is None:
+        host: Platform | None = host_platform()
+        target = host
+    else:
+        host, target = _try_host_platform(), platform
     mise_version = mise.version()
     candidates, exclusions, skipped = _gather(parsed, mise, github, target, ecosystems)
     if not candidates and skipped:

@@ -10,16 +10,18 @@ from typer.testing import CliRunner
 
 from mibare.core.errors import (
     GitHubUnavailableError,
+    InvalidPlatformError,
     InvalidRepositoryError,
     MibareError,
     MiseNotFoundError,
     MiseTooOldError,
 )
 from mibare.core.github import GitHubApi
-from mibare.core.mise import SubprocessMise
+from mibare.core.mise import RegistryEntry, SubprocessMise
 from mibare.core.platform import Platform
 from mibare.core.repository import Repository
 from mibare.core.resolve import Candidate, Resolution
+from tests.fakes import FakeGitHub, FakeMise
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -395,3 +397,41 @@ def test_an_unusable_network_with_no_results_exits_2(
 
     assert result.exit_code == 2
     assert "could not reach GitHub" in result.output
+
+
+def _unsupported_host() -> Platform:
+    """Fail like ``host_platform()`` does on an unsupported host.
+
+    Raises:
+        InvalidPlatformError: Always.
+    """
+    message = "Unsupported host platform Plan9-mips; pass --platform os-arch."
+    raise InvalidPlatformError(message)
+
+
+def test_platform_flag_works_on_an_unsupported_host(
+    runner: CliRunner, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """``--platform`` is the documented way out of an unsupported host.
+
+    Given:
+        - A host that is not a supported platform and fake adapters.
+    When:
+        - ``mibare --platform linux-x64`` runs, and then without the flag.
+    Then:
+        - With the flag it recommends a backend; without it, it exits 2.
+    """
+    registry = [RegistryEntry("rg", ("aqua:BurntSushi/ripgrep",))]
+    monkeypatch.setattr("mibare.core.resolve.host_platform", _unsupported_host)
+    monkeypatch.setattr(cli, "SubprocessMise", lambda: FakeMise(registry))
+    monkeypatch.setattr(cli, "GitHubApi", FakeGitHub)
+
+    flagged: Result = runner.invoke(
+        cli.app, ["--platform", "linux-x64", "BurntSushi/ripgrep"]
+    )
+    bare: Result = runner.invoke(cli.app, ["BurntSushi/ripgrep"])
+
+    assert flagged.exit_code == 0, flagged.output
+    assert "aqua:BurntSushi/ripgrep" in flagged.output
+    assert bare.exit_code == 2
+    assert "pass --platform" in bare.output
