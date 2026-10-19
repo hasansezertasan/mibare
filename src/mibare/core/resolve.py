@@ -38,6 +38,7 @@ _TIERS = (
     frozenset({"http", "s3"}),
     frozenset({"cargo", "go", "npm", "pypi", "pipx", "gem", "dotnet", "spm", "conda"}),
 )
+_MIN_TIED = 2  # candidates needed in a tier before a tie-break matters
 _LOWEST_TIER = len(_TIERS) + 1  # plugins and anything unknown
 _LEGACY_BACKENDS = frozenset({"asdf", "vfox", "ubi"})
 _LEGACY_WARNING = "{} is a legacy backend that mise discourages; prefer another."
@@ -386,21 +387,11 @@ def _primary_language(
 
 
 def _offer(
-    found: dict[str, list[str]],
-    hits: list[tuple[Ecosystem, Detection]],
-    language: str | None,
+    found: dict[str, list[str]], hits: list[tuple[Ecosystem, Detection]]
 ) -> None:
-    """Add the detected backends: primary language's first, then alphabetical.
-
-    ``found`` keeps insertion order and ranking is a stable sort by tier, so
-    this order is the tie-break among language packages.
-    """
-    hits.sort(key=lambda hit: (not hit[0].favoured_by(language), hit[1].backend_string))
-    for ecosystem, detection in hits:
-        reasons = found.setdefault(detection.backend_string, [])
-        reasons.append(detection.reason)
-        if ecosystem.favoured_by(language):
-            reasons.append(f"{language} is the repository's primary language")
+    """Add the detected backends and the reasons their entrypoints were found."""
+    for _, detection in hits:
+        found.setdefault(detection.backend_string, []).append(detection.reason)
 
 
 def _add_language_packages(
@@ -411,10 +402,6 @@ def _add_language_packages(
 ) -> tuple[Exclusion, ...]:
     """Add the language-package backends whose ecosystem finds an entrypoint.
 
-    The primary language's backend is added first and the others follow
-    alphabetically by backend string, so ranking (a stable sort by tier) keeps
-    that order.
-
     A GitHub failure is recorded as a skipped step.
 
     Returns:
@@ -423,12 +410,7 @@ def _add_language_packages(
     if github is None:
         return ()
     results, failure = _run_detectors(repository, github, ecosystems)
-    hits = [(eco, d) for eco, d in results if d.found]
-    language = None
-    if len(hits) > 1:
-        language, language_failure = _primary_language(repository, github)
-        failure = failure or language_failure
-    _offer(findings.backends, hits, language)
+    _offer(findings.backends, [(eco, d) for eco, d in results if d.found])
     misses = tuple(
         Exclusion(d.backend_string, d.reason) for _, d in results if not d.found
     )
@@ -437,25 +419,79 @@ def _add_language_packages(
     return misses
 
 
+def _is_favoured(
+    backend_string: str, ecosystems: Sequence[Ecosystem], language: str | None
+) -> bool:
+    """Whether ``language`` makes ``backend_string``'s ecosystem the natural fit.
+
+    Returns:
+        bool: ``True`` for a language-package backend favoured by ``language``.
+    """
+    backend = backend_string.partition(":")[0]
+    return any(
+        eco.backend == backend and eco.favoured_by(language) for eco in ecosystems
+    )
+
+
+def _lookup_language(
+    findings: _Findings,
+    repository: Repository,
+    github: GitHub | None,
+    ecosystems: Sequence[Ecosystem],
+) -> str | None:
+    """Look up the primary language when language packages compete for a tier.
+
+    The lookup is skipped when fewer than two language-package candidates were
+    found, since there is nothing to order. A GitHub failure is recorded as a
+    skipped step.
+
+    Returns:
+        str | None: The language, or ``None`` when not needed or unavailable.
+    """
+    names = {eco.backend for eco in ecosystems}
+    packages = [b for b in findings.backends if b.partition(":")[0] in names]
+    if github is None or len(packages) < _MIN_TIED:
+        return None
+    language, failure = _primary_language(repository, github)
+    if failure is not None:
+        findings.skipped.setdefault("language-package", failure)
+    return language
+
+
 def _rank(
-    found: dict[str, list[str]], target: Platform
+    found: dict[str, list[str]],
+    target: Platform,
+    ecosystems: Sequence[Ecosystem],
+    language: str | None,
 ) -> tuple[tuple[Candidate, ...], tuple[Exclusion, ...]]:
     """Tier, flag and sort the backends, dropping those unusable on ``target``.
 
+    Within a tier, the primary language's backend comes first and the rest
+    follow alphabetically by backend string, so the order is deterministic.
+
     Returns:
         tuple[tuple[Candidate, ...], tuple[Exclusion, ...]]: The candidates,
-            best tier first with ties in discovery order, and the exclusions.
+            best first, and the exclusions.
     """
     candidates: list[Candidate] = []
     exclusions: list[Exclusion] = []
-    for backend, reasons in found.items():
+    for backend, found_reasons in found.items():
+        reasons = list(found_reasons)
+        if _is_favoured(backend, ecosystems, language):
+            reasons.append(f"{language} is the repository's primary language")
         candidate = _candidate(backend, reasons)
         why_not = _unusable_reason(candidate, target)
         if why_not is None:
             candidates.append(candidate)
         else:
             exclusions.append(Exclusion(backend, why_not))
-    candidates.sort(key=lambda c: c.tier or _LOWEST_TIER)
+    candidates.sort(
+        key=lambda c: (
+            c.tier or _LOWEST_TIER,
+            not _is_favoured(c.backend_string, ecosystems, language),
+            c.backend_string,
+        )
+    )
     return tuple(candidates), tuple(exclusions)
 
 
@@ -475,7 +511,8 @@ def _gather(
     findings = _found_backends(repository, mise)
     _add_github(findings, repository, mise, github, target)
     misses = _add_language_packages(findings, repository, github, ecosystems)
-    candidates, unusable = _rank(findings.backends, target)
+    language = _lookup_language(findings, repository, github, ecosystems)
+    candidates, unusable = _rank(findings.backends, target, ecosystems, language)
     exclusions = (*findings.exclusions, *unusable, *misses)
     return candidates, exclusions, findings.skipped
 

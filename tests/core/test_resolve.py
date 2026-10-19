@@ -205,7 +205,7 @@ def test_a_higher_tier_backend_outranks_a_legacy_one_listed_first() -> None:
     When:
         - The repository is resolved.
     Then:
-        - aqua and github lead, then the language package, then asdf and ubi.
+        - aqua then github (alphabetical in the tier), the language package, asdf, ubi.
     """
     registry = entry(
         "eza",
@@ -219,8 +219,8 @@ def test_a_higher_tier_backend_outranks_a_legacy_one_listed_first() -> None:
     resolution = resolve("eza-community/eza", FakeMise([registry]))
 
     assert _backends(resolution) == [
-        "github:eza-community/eza",
         "aqua:eza-community/eza",
+        "github:eza-community/eza",
         "cargo:github.com/eza-community/eza",
         "asdf:eza-community/eza",
         "ubi:eza-community/eza",
@@ -281,14 +281,14 @@ def test_ranking_is_deterministic() -> None:
     When:
         - The repository is resolved twice.
     Then:
-        - The order is identical and keeps the registry's order within the tier.
+        - The order is identical and breaks ties alphabetically by backend string.
     """
     registry = entry("t", "npm:github:o/r", "cargo:github.com/o/r", "aqua:o/r")
 
     first = _backends(resolve("o/r", FakeMise([registry])))
     second = _backends(resolve("o/r", FakeMise([registry])))
 
-    assert first == second == ["aqua:o/r", "npm:github:o/r", "cargo:github.com/o/r"]
+    assert first == second == ["aqua:o/r", "cargo:github.com/o/r", "npm:github:o/r"]
 
 
 def test_asdf_is_excluded_for_a_windows_target() -> None:
@@ -864,3 +864,46 @@ def test_an_npm_github_backend_identifies_its_repository() -> None:
     resolution = resolve("BurntSushi/ripgrep", FakeMise([entry("rg", backend)]))
 
     assert _backends(resolution) == [backend]
+
+
+def test_ties_within_a_tier_break_alphabetically_for_registry_candidates() -> None:
+    """Equal-tier candidates are ordered by backend string, not registry order.
+
+    Given:
+        - A registry entry listing github before aqua and npm before cargo.
+    When:
+        - The repository is resolved.
+    Then:
+        - aqua precedes github in tier 2 and cargo precedes npm in tier 4.
+    """
+    registry = entry(
+        "t", "github:o/r", "npm:github:o/r", "cargo:github.com/o/r", "aqua:o/r"
+    )
+
+    resolution = resolve("o/r", FakeMise([registry]))
+
+    assert _backends(resolution) == [
+        "aqua:o/r",
+        "github:o/r",
+        "cargo:github.com/o/r",
+        "npm:github:o/r",
+    ]
+
+
+def test_the_primary_language_leads_among_registry_language_packages() -> None:
+    """A registry language package matching the primary language wins its tier.
+
+    Given:
+        - A registry entry listing cargo and pypi backends, and a Python
+          repository.
+    When:
+        - The repository is resolved with a GitHub adapter.
+    Then:
+        - The pypi backend precedes the alphabetically earlier cargo one.
+    """
+    registry = entry("t", "aqua:o/r", "cargo:github.com/o/r", "pypi:o-r")
+    github = FakeGitHub(language="Python")
+
+    resolution = resolve("o/r", FakeMise([registry]), LINUX_X64, github=github)
+
+    assert _backends(resolution) == ["aqua:o/r", "pypi:o-r", "cargo:github.com/o/r"]
