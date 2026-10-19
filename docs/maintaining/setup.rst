@@ -549,6 +549,83 @@ turned on.
 
 UI equivalent: **Settings → General → Features** — tick **Discussions**.
 
+Optional integrations
+---------------------
+
+These are enabled in this project's Copier answers and each needs a one-time
+external setup. Until set up, they are inert — CI stays green. They are opt-in: a
+red ``[CHECK]`` here means "not configured", which is a fine state to leave.
+
+Homebrew tap
+~~~~~~~~~~~~
+
+The release workflow does not build a formula itself — it sends a
+``repository_dispatch`` event to your ``hasansezertasan/homebrew-tap`` repo,
+whose own listener workflow bumps the formula and opens a PR there. Full
+one-time setup (creating the tap, bootstrapping the initial formula, and
+installing the listener) is documented in
+:doc:`../packaging/homebrew-tap/README`.
+
+.. toctree::
+   :hidden:
+
+   ../packaging/homebrew-tap/README
+
+The only piece owned by **this** repo is the dispatch credential:
+
+**[HUMAN]** Create a fine-grained PAT with **Contents: write** on
+``hasansezertasan/homebrew-tap`` (no ``Pull requests`` scope needed — the tap
+opens its own PR with its own ``GITHUB_TOKEN``).
+
+**[AGENT]** Set it as the ``HOMEBREW_TAP_TOKEN`` repository secret:
+
+.. code-block:: sh
+
+   gh secret set HOMEBREW_TAP_TOKEN --repo hasansezertasan/mibare
+
+**[CHECK]**
+
+.. code-block:: sh
+
+   gh secret list --repo hasansezertasan/mibare --json name \
+     --jq 'any(.[]; .name == "HOMEBREW_TAP_TOKEN")' | grep -qx true
+
+When unset, the ``bump-homebrew`` job skips with a notice (never fails the
+release).
+Scoop bucket
+~~~~~~~~~~~~
+
+The release workflow does not build a manifest itself — it sends a
+``repository_dispatch`` event to your ``hasansezertasan/scoop-bucket`` repo,
+whose own listener workflow bumps the manifest and opens a PR there. Full
+one-time setup (creating the bucket, bootstrapping the initial manifest, and
+installing the listener) is documented in :doc:`../packaging/scoop-bucket/README`.
+
+.. toctree::
+   :hidden:
+
+   ../packaging/scoop-bucket/README
+
+The only piece owned by **this** repo is the dispatch credential:
+
+**[HUMAN]** Create a fine-grained PAT with **Contents: write** on
+``hasansezertasan/scoop-bucket`` (no ``Pull requests`` scope needed — the bucket
+opens its own PR with its own ``GITHUB_TOKEN``).
+
+**[AGENT]** Set it as the ``SCOOP_BUCKET_TOKEN`` repository secret:
+
+.. code-block:: sh
+
+   gh secret set SCOOP_BUCKET_TOKEN --repo hasansezertasan/mibare
+
+**[CHECK]**
+
+.. code-block:: sh
+
+   gh secret list --repo hasansezertasan/mibare --json name \
+     --jq 'any(.[]; .name == "SCOOP_BUCKET_TOKEN")' | grep -qx true
+
+When unset, the ``bump-scoop`` job skips with a notice (never fails the release).
 
 Optional post-launch integrations
 ---------------------------------

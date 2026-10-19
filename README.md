@@ -48,6 +48,19 @@ uv tool install mibare
 
 Or run it without installing with `uvx mibare`. See the [installation docs](https://hasansezertasan.github.io/mibare/installation.html) for pipx and from-source options.
 
+Install with [Homebrew](https://brew.sh) (macOS/Linux):
+
+```sh
+brew install hasansezertasan/tap/mibare
+```
+
+Install with [Scoop](https://scoop.sh) (Windows):
+
+```sh
+scoop bucket add hasansezertasan https://github.com/hasansezertasan/scoop-bucket
+scoop install hasansezertasan/mibare
+```
+
 ### Verify the installation
 
 The package root is importable after installation:

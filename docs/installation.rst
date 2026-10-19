@@ -25,6 +25,19 @@ Or run it without installing:
 
    uvx mibare
 
+Homebrew (macOS/Linux):
+
+.. code-block:: sh
+
+    brew install hasansezertasan/tap/mibare
+
+Scoop (Windows):
+
+.. code-block:: sh
+
+    scoop bucket add hasansezertasan https://github.com/hasansezertasan/scoop-bucket
+    scoop install hasansezertasan/mibare
+
 Verify release provenance
 -------------------------
 

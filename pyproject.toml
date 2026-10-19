@@ -11,6 +11,11 @@ maintainers = [
 ]
 dynamic = ["version"]
 keywords = [
+  "mise",
+  "backend",
+  "resolver",
+  "github",
+  "cli",
   "sphinx",
   "typer",
 ]

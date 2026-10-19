@@ -23,7 +23,7 @@ include_docs: true
 include_examples: false
 include_freezer: false
 include_gui: false
-include_homebrew: false
+include_homebrew: true
 include_launcher: false
 include_mcp: false
 include_megalinter: false
@@ -34,7 +34,7 @@ include_pypi_publish: true
 include_redis: false
 include_repo_ruleset: false
 include_repo_settings: false
-include_scoop: false
+include_scoop: true
 include_smokeshow: false
 include_sonarcloud: false
 include_sourcery: false
@@ -42,7 +42,7 @@ include_tui: false
 include_vpn: false
 include_web: false
 include_worker: false
-package_keywords: ''
+package_keywords: mise, backend, resolver, github, cli
 preset: library
 short_description: 'Mise Backend Resolver: recommends which mise backend to install
     a GitHub repository with'
