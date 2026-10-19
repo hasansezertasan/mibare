@@ -193,6 +193,27 @@ def _points_at(repository: Repository, backend_string: str) -> bool:
     )
 
 
+def _dedupe_key(backend_string: str) -> str:
+    """Fold the case of the tool path, leaving any ``[options]`` untouched.
+
+    Returns:
+        str: ``backend_string`` with its ``owner/repo`` part case-folded.
+    """
+    backend, colon, tool = backend_string.partition(":")
+    path, bracket, options = tool.partition("[")
+    return f"{backend}{colon}{path.casefold()}{bracket}{options}"
+
+
+def _known(backends: dict[str, list[str]], backend_string: str) -> str:
+    """Find the spelling already recorded for ``backend_string``, ignoring case.
+
+    Returns:
+        str: The first spelling seen, or ``backend_string`` when it is new.
+    """
+    key = _dedupe_key(backend_string)
+    return next((b for b in backends if _dedupe_key(b) == key), backend_string)
+
+
 def _candidate(backend_string: str, reasons: list[str]) -> Candidate:
     """Build a candidate, placing it on the tier ladder and flagging legacy.
 
@@ -265,7 +286,7 @@ def _probe_aqua(repository: Repository, mise: Mise, findings: _Findings) -> None
     A failed probe is recorded as a skipped step instead of raised.
     """
     aqua = f"aqua:{repository.shorthand}"
-    if aqua in findings.backends:
+    if _known(findings.backends, aqua) in findings.backends:
         return
     try:
         exists = mise.recipe_exists(aqua)
@@ -291,7 +312,7 @@ def _found_backends(repository: Repository, mise: Mise) -> _Findings:
         if any(_points_at(repository, backend) for backend in entry.backends):
             reason = f"listed in the mise registry as {entry.tool!r}"
             for backend in entry.backends:
-                reasons = backends.setdefault(backend, [])
+                reasons = backends.setdefault(_known(backends, backend), [])
                 if reason not in reasons:
                     reasons.append(reason)
     _probe_aqua(repository, mise, findings)
@@ -336,7 +357,7 @@ def _add_github(
     A failed probe or an unreachable GitHub is recorded as a skipped step.
     """
     backend = f"github:{repository.shorthand}"
-    if github is None or backend in findings.backends:
+    if github is None or _known(findings.backends, backend) in findings.backends:
         return
     try:
         reasons, why_not = _github_release(repository, mise, github, target)
@@ -415,7 +436,8 @@ def _offer(
 ) -> None:
     """Add the detected backends and the reasons their entrypoints were found."""
     for _, detection in detections:
-        backends.setdefault(detection.backend_string, []).append(detection.reason)
+        known = _known(backends, detection.backend_string)
+        backends.setdefault(known, []).append(detection.reason)
 
 
 def _add_language_packages(

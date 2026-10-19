@@ -972,6 +972,38 @@ def test_no_platform_on_an_unsupported_host_still_raises(
         _ = resolve("BurntSushi/ripgrep", FakeMise([RIPGREP]))
 
 
+PACKAGE_BIN = '{"name": "tool", "bin": "cli.js"}'
+
+
+@pytest.mark.parametrize(
+    ("registered", "recipes", "github_files"),
+    [
+        ("aqua:Owner/Tool", ["aqua:owner/tool"], {}),
+        ("github:Owner/Tool", ["github:owner/tool"], {}),
+        ("npm:github:Owner/Tool", [], {"package.json": PACKAGE_BIN}),
+    ],
+    ids=["aqua", "github", "npm"],
+)
+def test_backends_are_deduplicated_ignoring_the_case_of_owner_and_repo(
+    registered: str, recipes: list[str], github_files: dict[str, str]
+) -> None:
+    """A step re-finding a registry backend in another case adds no candidate.
+
+    Given:
+        - A registry entry spelling the repository ``Owner/Tool``.
+    When:
+        - ``owner/tool`` is resolved and a later step finds the same backend.
+    Then:
+        - One candidate remains, with the registry's spelling.
+    """
+    mise = FakeMise([entry("tool", registered)], recipes=recipes)
+    github = FakeGitHub(TOOL_ASSETS, files=github_files)
+
+    resolution = resolve(TOOL, mise, LINUX_X64, github=github)
+
+    assert [c.backend_string for c in resolution.candidates] == [registered]
+
+
 def test_a_repository_that_does_not_exist_is_an_error() -> None:
     """A definite 404 for the repository is an error, not 'no backend'.
 
