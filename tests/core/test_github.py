@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import base64
+import http.client
 import io
 import json
 import urllib.error
@@ -163,6 +164,23 @@ def test_network_errors_raise_unavailable() -> None:
     api = GitHubApi(FakeTransport(error=OSError("offline")), token=None)
 
     with pytest.raises(GitHubUnavailableError, match="offline"):
+        _ = api.primary_language(REPO)
+
+
+@pytest.mark.parametrize(
+    "error",
+    [
+        http.client.IncompleteRead(b"partial"),
+        http.client.InvalidURL("bad url"),
+        UnicodeEncodeError("ascii", "é", 0, 1, "ordinal not in range"),
+        ValueError("unknown url type"),
+    ],
+)
+def test_non_oserror_transport_failures_raise_unavailable(error: Exception) -> None:
+    """A transport failing without an ``OSError`` is still GitHub being unavailable."""
+    api = GitHubApi(FakeTransport(error=error), token=None)
+
+    with pytest.raises(GitHubUnavailableError, match="Could not reach GitHub"):
         _ = api.primary_language(REPO)
 
 

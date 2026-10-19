@@ -96,6 +96,17 @@ def _exclusion_lines(resolution: Resolution) -> list[str]:
     ]
 
 
+def _unexpected_message(error: Exception, *, verbose: bool) -> str:
+    """Describe an exception mibare did not expect, since exit 1 means no backend.
+
+    Returns:
+        str: A short message; with ``verbose``, the exception type and text.
+    """
+    if verbose:
+        return f"Error: unexpected error: {type(error).__name__}: {error}"
+    return "Error: unexpected error; run again with --verbose for details."
+
+
 @app.command()
 def main(
     repository: Annotated[
@@ -135,6 +146,9 @@ def main(
         resolution = resolve(repository, SubprocessMise(), target, github=GitHubApi())
     except MibareError as error:
         typer.echo(f"Error: {error}", err=True)
+        raise typer.Exit(code=EXIT_ERROR) from None
+    except Exception as error:  # noqa: BLE001  # the boundary: a crash must not exit 1
+        typer.echo(_unexpected_message(error, verbose=verbose), err=True)
         raise typer.Exit(code=EXIT_ERROR) from None
     if json_output:
         typer.echo(json.dumps(resolution.to_dict(), indent=2))

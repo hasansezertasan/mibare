@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import base64
 import binascii
+import http.client
 import json
 import os
 import urllib.error
@@ -66,7 +67,7 @@ class RepositoryFiles:
 
 
 class Transport(Protocol):
-    """Performs a GET request; raises ``OSError`` when the network fails."""
+    """Performs a GET request; raises ``OSError`` or ``http.client`` errors."""
 
     def __call__(self, url: str, headers: Mapping[str, str]) -> HttpResponse:
         """Fetch ``url`` with ``headers``."""
@@ -295,7 +296,8 @@ class GitHubApi:
             headers["Authorization"] = f"Bearer {self._token}"
         try:
             response = self._transport(f"{_API}{path}", headers)
-        except OSError as exc:
+        except (OSError, http.client.HTTPException, ValueError) as exc:
+            # ValueError covers UnicodeError and urllib's "unknown url type".
             message = f"Could not reach GitHub: {exc}"
             raise GitHubUnavailableError(message) from exc
         if response.status not in {_HTTP_OK, _HTTP_NOT_FOUND}:

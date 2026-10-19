@@ -399,6 +399,32 @@ def test_an_unusable_network_with_no_results_exits_2(
     assert "could not reach GitHub" in result.output
 
 
+def test_an_unexpected_exception_exits_2_not_1(
+    runner: CliRunner, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A crash is not 'no backend found': it exits 2 with a short message.
+
+    Given:
+        - A ``resolve()`` that raises an exception mibare does not expect.
+    When:
+        - ``mibare`` runs, without and with ``--verbose``.
+    Then:
+        - Both exit 2 with no traceback; only ``--verbose`` shows the detail.
+    """
+    monkeypatch.setattr(cli, "resolve", _failing(RuntimeError("boom 42")))
+
+    quiet: Result = runner.invoke(cli.app, ["BurntSushi/ripgrep"])
+    verbose: Result = runner.invoke(cli.app, ["--verbose", "BurntSushi/ripgrep"])
+
+    assert quiet.exit_code == 2
+    assert "unexpected error" in quiet.output.lower()
+    assert "boom 42" not in quiet.output
+    assert verbose.exit_code == 2
+    assert "RuntimeError" in verbose.output
+    assert "boom 42" in verbose.output
+    assert "Traceback" not in quiet.output + verbose.output
+
+
 def _unsupported_host() -> Platform:
     """Fail like ``host_platform()`` does on an unsupported host.
 
