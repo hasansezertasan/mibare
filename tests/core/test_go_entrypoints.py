@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from mibare.core.ecosystems import GO
+from mibare.core.go_entrypoints import MAX_FILE_READS, MAX_FILES_PER_DIR
 from mibare.core.platform import Platform
 from mibare.core.resolve import Resolution, resolve
 from tests.fakes import FakeGitHub, FakeMise
@@ -143,13 +145,87 @@ def test_package_main_with_comments_is_detected() -> None:
     ]
 
 
-def test_only_a_bounded_number_of_root_files_is_read() -> None:
-    """A huge root listing is capped, so a late ``package main`` is missed."""
+def test_only_a_bounded_number_of_files_per_directory_is_read() -> None:
+    """A late ``package main`` behind many files is missed, and the note says so."""
     files = {"go.mod": GO_MOD}
     files.update({f"a{i:02}.go": LIB for i in range(25)})
     files["z.go"] = MAIN
+    github = FakeGitHub(files=files)
 
-    assert _go(files).candidates == ()
+    resolution = resolve(TOOL, FakeMise(), LINUX_X64, github=github, ecosystems=(GO,))
+
+    assert resolution.candidates == ()
+    root_reads = [n for n in github.file_reads if n.endswith(".go")]
+    assert len(root_reads) == MAX_FILES_PER_DIR
+    assert any("Go search was limited" in note for note in resolution.notes)
+
+
+def test_main_go_is_read_before_other_files() -> None:
+    """``main.go`` is tried first, so it is found with a single read."""
+    files = {"go.mod": GO_MOD, "a.go": LIB, "main.go": MAIN}
+    github = FakeGitHub(files=files)
+
+    resolution = resolve(TOOL, FakeMise(), LINUX_X64, github=github, ecosystems=(GO,))
+
+    assert _backends(resolution) == ["go:github.com/owner/tool"]
+    assert github.file_reads == ["go.mod", "main.go"]
+    assert resolution.notes == ()
+
+
+def test_the_repository_is_listed_with_one_request() -> None:
+    """Finding the Go files and ``cmd`` directories costs one listing request."""
+    files = {"go.mod": GO_MOD, "cmd/a/main.go": MAIN, "cmd/b/main.go": MAIN}
+    github = FakeGitHub(files=files)
+
+    _ = resolve(TOOL, FakeMise(), LINUX_X64, github=github, ecosystems=(GO,))
+
+    assert github.tree_calls == 1
+
+
+def test_file_reads_across_the_go_step_are_capped() -> None:
+    """Many ``cmd`` directories cannot exceed the read budget; the note says so."""
+    files = {"go.mod": GO_MOD}
+    files.update({f"cmd/c{i:02}/main.go": MAIN for i in range(30)})
+    github = FakeGitHub(files=files)
+
+    resolution = resolve(TOOL, FakeMise(), LINUX_X64, github=github, ecosystems=(GO,))
+
+    assert len(github.file_reads) == MAX_FILE_READS
+    assert len(resolution.candidates) == MAX_FILE_READS - 1
+    assert any("Go search was limited" in note for note in resolution.notes)
+
+
+def test_a_search_that_fits_the_budget_adds_no_note() -> None:
+    """Exactly the budget's worth of work is not a limited search."""
+    files = {"go.mod": GO_MOD}
+    files.update({f"cmd/c{i:02}/main.go": MAIN for i in range(MAX_FILE_READS - 1)})
+
+    resolution = _go(files)
+
+    assert len(resolution.candidates) == MAX_FILE_READS - 1
+    assert resolution.notes == ()
+
+
+def test_a_truncated_file_listing_is_noted() -> None:
+    """When GitHub truncates the tree, the search is flagged as incomplete."""
+    github = FakeGitHub(files={"go.mod": GO_MOD, "main.go": MAIN})
+    github.truncated = True
+
+    resolution = resolve(TOOL, FakeMise(), LINUX_X64, github=github, ecosystems=(GO,))
+
+    assert _backends(resolution) == ["go:github.com/owner/tool"]
+    assert any("truncated" in note for note in resolution.notes)
+
+
+def test_a_library_search_that_hits_a_limit_still_notes_it() -> None:
+    """A not-found Go detection carries the limited-search note too."""
+    github = FakeGitHub(files={"go.mod": GO_MOD, "a.go": LIB})
+    github.truncated = True
+
+    resolution = resolve(TOOL, FakeMise(), LINUX_X64, github=github, ecosystems=(GO,))
+
+    assert resolution.candidates == ()
+    assert any("Go search was limited" in note for note in resolution.notes)
 
 
 def test_go_is_favoured_by_go_language() -> None:

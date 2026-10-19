@@ -4,11 +4,17 @@ A Go repository installs with ``go:<module path>``, plus ``/cmd/<name>`` for an
 entrypoint that lives in a subdirectory, so one candidate is offered per
 entrypoint.
 
-Reading is bounded to spare the GitHub rate limit: a directory is searched in
-file-name order (``main.go`` first), stops at the first ``package main``, and
-reads at most :data:`MAX_FILES_PER_DIR` ``.go`` files. At most
-:data:`MAX_CMD_DIRS` directories under ``cmd/`` are searched. An entrypoint hidden
-behind that many other files or directories is missed.
+Reading is bounded to spare GitHub's rate limit (60 REST requests an hour
+without a token). The whole repository is listed with one request, which finds
+every ``.go`` file and ``cmd/<name>`` directory without per-directory
+listings. Then at most :data:`MAX_FILE_READS` file reads are spent across the
+whole Go step (``go.mod`` included). Each directory is searched in file-name
+order with ``main.go`` first, stops at its first ``package main`` and reads at
+most :data:`MAX_FILES_PER_DIR` files; the first file of every directory is read
+before the second file of any, so the budget is spread evenly. When a limit
+hides part of the search (the budget, the per-directory cap or a truncated
+listing), the detections carry a note saying the Go search was limited, and an
+entrypoint hidden behind the limit is missed.
 """
 
 from __future__ import annotations
@@ -19,21 +25,57 @@ from typing import TYPE_CHECKING
 from mibare.core.detection import Detection
 
 if TYPE_CHECKING:
-    from collections.abc import Sequence
-
     from mibare.core.github import GitHub
     from mibare.core.repository import Repository
 
-__all__ = ["MAX_CMD_DIRS", "MAX_FILES_PER_DIR", "detect_go"]
+__all__ = ["MAX_FILES_PER_DIR", "MAX_FILE_READS", "detect_go"]
 
-#: The most ``.go`` files read in one directory.
-MAX_FILES_PER_DIR = 20
-#: The most ``cmd/<name>`` directories searched.
-MAX_CMD_DIRS = 30
+#: The most file reads (``go.mod`` and ``.go`` files) in one Go detector run.
+MAX_FILE_READS = 20
+#: The most ``.go`` files read in one directory, ``main.go`` first.
+MAX_FILES_PER_DIR = 3
+
+_CMD_FILE_DEPTH = 3  # cmd/<name>/<file>.go
 
 _COMMENTS = re.compile(r"/\*.*?\*/|//[^\n]*", re.DOTALL)
 _PACKAGE = re.compile(r"^\s*package\s+(\w+)", re.MULTILINE)
 _MODULE = re.compile(r'^\s*module\s+"?([^\s"]+)"?', re.MULTILINE)
+
+
+class _Reader:
+    """Reads repository files within the detector's shared read budget."""
+
+    def __init__(self, repository: Repository, github: GitHub) -> None:
+        """Start with the full :data:`MAX_FILE_READS` budget."""
+        self._repository = repository
+        self._github = github
+        self._remaining = MAX_FILE_READS
+        self.limits: list[str] = []
+
+    def limit(self, reason: str) -> None:
+        """Record why the search was cut short, once."""
+        if reason not in self.limits:
+            self.limits.append(reason)
+
+    def read(self, path: str) -> str | None:
+        """Read ``path`` when budget is left.
+
+        Returns:
+            str | None: The text, or ``None`` when the file is absent or the
+                budget is spent (which is recorded as a limit).
+        """
+        if self._remaining == 0:
+            self.limit(f"it reads at most {MAX_FILE_READS} files")
+            return None
+        self._remaining -= 1
+        return self._github.root_file(self._repository, path)
+
+    @property
+    def note(self) -> tuple[str, ...]:
+        """The note to attach to detections, empty when nothing was limited."""
+        if not self.limits:
+            return ()
+        return (f"The Go search was limited: {'; '.join(self.limits)}.",)
 
 
 def _declares_main(source: str) -> bool:
@@ -46,31 +88,60 @@ def _declares_main(source: str) -> bool:
     return match is not None and match.group(1) == "main"
 
 
-def _go_files(names: Sequence[str]) -> list[str]:
-    """Pick the non-test ``.go`` files to read, ``main.go`` first, capped.
+def _go_directories(paths: tuple[str, ...]) -> dict[str, list[str]]:
+    """Group the non-test ``.go`` files of the root and ``cmd/<name>`` by directory.
 
     Returns:
-        list[str]: At most :data:`MAX_FILES_PER_DIR` file names.
+        dict[str, list[str]]: File names per directory (``""`` for the root),
+            the root first and then ``cmd/<name>`` in name order, each with
+            ``main.go`` first.
     """
-    files = sorted(
-        (n for n in names if n.endswith(".go") and not n.endswith("_test.go")),
-        key=lambda n: (n != "main.go", n),
-    )
-    return files[:MAX_FILES_PER_DIR]
+    grouped: dict[str, list[str]] = {}
+    for path in paths:
+        parts = path.split("/")
+        if not parts[-1].endswith(".go") or parts[-1].endswith("_test.go"):
+            continue
+        if len(parts) == 1:
+            grouped.setdefault("", []).append(parts[0])
+        elif len(parts) == _CMD_FILE_DEPTH and parts[0] == "cmd":
+            grouped.setdefault(f"cmd/{parts[1]}", []).append(parts[2])
+    return {
+        directory: sorted(names, key=lambda n: (n != "main.go", n))
+        for directory, names in sorted(grouped.items())
+    }
 
 
-def _has_main(repository: Repository, github: GitHub, directory: str) -> bool:
-    """Whether a ``.go`` file in ``directory`` declares ``package main``.
+def _note_per_directory_cap(
+    reader: _Reader, directories: dict[str, list[str]], found: set[str]
+) -> None:
+    """Record the per-directory cap when it hid files in a directory without a main."""
+    if any(
+        len(names) > MAX_FILES_PER_DIR and directory not in found
+        for directory, names in directories.items()
+    ):
+        reader.limit(f"it reads at most {MAX_FILES_PER_DIR} files per directory")
+
+
+def _find_mains(reader: _Reader, directories: dict[str, list[str]]) -> set[str]:
+    """Find the directories whose files declare ``package main``.
+
+    Files are read round-robin, so every directory's first file is read before
+    any directory's second.
 
     Returns:
-        bool: ``True`` when one does.
+        set[str]: The directories with a ``package main``.
     """
-    prefix = f"{directory}/" if directory else ""
-    for name in _go_files(github.list_dir(repository, directory)):
-        source = github.root_file(repository, f"{prefix}{name}")
-        if source is not None and _declares_main(source):
-            return True
-    return False
+    found: set[str] = set()
+    for rank in range(MAX_FILES_PER_DIR):
+        for directory, names in directories.items():
+            if directory in found or rank >= len(names):
+                continue
+            prefix = f"{directory}/" if directory else ""
+            source = reader.read(f"{prefix}{names[rank]}")
+            if source is not None and _declares_main(source):
+                found.add(directory)
+    _note_per_directory_cap(reader, directories, found)
+    return found
 
 
 def _module_path(go_mod: str, repository: Repository) -> str:
@@ -93,39 +164,28 @@ def detect_go(repository: Repository, github: GitHub) -> list[Detection]:
         list[Detection]: One ``found`` detection per entrypoint, or a single
             exclusion when the module has none.
     """
-    go_mod = github.root_file(repository, "go.mod")
+    listing = github.list_files(repository)
+    reader = _Reader(repository, github)
+    if listing.truncated:
+        reader.limit("GitHub truncated the repository file listing")
+    has_go_mod = "go.mod" in listing.paths or listing.truncated
+    go_mod = reader.read("go.mod") if has_go_mod else None
     fallback = f"github.com/{repository.shorthand}"
     module = fallback if go_mod is None else _module_path(go_mod, repository)
+    mains = _find_mains(reader, _go_directories(listing.paths))
     note = " (no go.mod in the repository root; assumed " + fallback + ")"
     found = [
         Detection(
-            f"go:{module}{subpath}",
-            f"{where} declares package main{note if go_mod is None else ''}",
+            f"go:{module}{'/' + directory if directory else ''}",
+            f"{directory or 'the root'} declares package main"
+            f"{note if go_mod is None else ''}",
+            notes=reader.note,
         )
-        for subpath, where in _entrypoints(repository, github)
+        for directory in sorted(mains, key=lambda d: (bool(d), d))
     ]
     if found:
         return found
     reason = "no package main in the root or under cmd/"
     if go_mod is None:
         reason = "no go.mod in the repository root and " + reason
-    return [Detection(f"go:{module}", reason, found=False)]
-
-
-def _entrypoints(repository: Repository, github: GitHub) -> list[tuple[str, str]]:
-    """Find the directories that declare ``package main``.
-
-    Returns:
-        list[tuple[str, str]]: A (module subpath, description) pair per
-            entrypoint: the root first, then each ``cmd/<name>``.
-    """
-    entrypoints: list[tuple[str, str]] = []
-    if _has_main(repository, github, ""):
-        entrypoints.append(("", "the root"))
-    names = github.list_dir(repository, "cmd")[:MAX_CMD_DIRS]
-    entrypoints.extend(
-        (f"/cmd/{name}", f"cmd/{name}")
-        for name in names
-        if _has_main(repository, github, f"cmd/{name}")
-    )
-    return entrypoints
+    return [Detection(f"go:{module}", reason, found=False, notes=reader.note)]

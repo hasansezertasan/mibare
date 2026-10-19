@@ -23,7 +23,14 @@ if TYPE_CHECKING:
 
     from mibare.core.repository import Repository
 
-__all__ = ["GitHub", "GitHubApi", "HttpResponse", "Transport", "urllib_transport"]
+__all__ = [
+    "GitHub",
+    "GitHubApi",
+    "HttpResponse",
+    "RepositoryFiles",
+    "Transport",
+    "urllib_transport",
+]
 
 _API = "https://api.github.com"
 _TIMEOUT_SECONDS = 20
@@ -44,6 +51,20 @@ class HttpResponse:
     body: bytes
 
 
+@dataclass(frozen=True)
+class RepositoryFiles:
+    """The file listing of a repository's default branch.
+
+    Attributes:
+        paths: The repo-relative path of every file, such as ``cmd/a/main.go``.
+        truncated: Whether GitHub cut the listing short (very large trees), so
+            ``paths`` may be missing files.
+    """
+
+    paths: tuple[str, ...] = ()
+    truncated: bool = False
+
+
 class Transport(Protocol):
     """Performs a GET request; raises ``OSError`` when the network fails."""
 
@@ -59,8 +80,8 @@ class GitHub(Protocol):
         """Return the asset names of the latest release; empty when none."""
         raise NotImplementedError
 
-    def list_dir(self, repository: Repository, path: str) -> tuple[str, ...]:
-        """Return a directory's entry names; empty when it is absent."""
+    def list_files(self, repository: Repository) -> RepositoryFiles:
+        """Return every file path in the repository, in one request."""
         raise NotImplementedError
 
     def primary_language(self, repository: Repository) -> str | None:
@@ -199,26 +220,37 @@ class GitHubApi:
         except (binascii.Error, UnicodeDecodeError):
             return None
 
-    def list_dir(self, repository: Repository, path: str) -> tuple[str, ...]:
-        """List the entry names of a directory in the repository.
+    def list_files(self, repository: Repository) -> RepositoryFiles:
+        """List every file in the repository with one git trees request.
 
         Args:
             repository: The repository to look up.
-            path: The directory path, such as ``cmd``; empty for the root.
 
         Returns:
-            tuple[str, ...]: The entry names; empty when the path is absent
-                or is not a directory.
+            RepositoryFiles: The path of every file on the default branch, and
+                whether GitHub truncated the listing; empty when the
+                repository has no tree.
         """
-        body = self._get(f"/repos/{repository.shorthand}/contents/{path}".rstrip("/"))
-        if not isinstance(body, list):
-            return ()
-        names = (
-            cast("dict[str, object]", item).get("name")
-            for item in cast("list[object]", body)
+        body = self._get(f"/repos/{repository.shorthand}/git/trees/HEAD?recursive=1")
+        if not isinstance(body, dict):
+            return RepositoryFiles()
+        fields = cast("dict[str, object]", body)
+        tree = fields.get("tree")
+        if not isinstance(tree, list):
+            return RepositoryFiles()
+        entries = (
+            cast("dict[str, object]", item)
+            for item in cast("list[object]", tree)
             if isinstance(item, dict)
         )
-        return tuple(name for name in names if isinstance(name, str))
+        paths = tuple(
+            entry["path"]
+            for entry in entries
+            if entry.get("type") == "blob" and isinstance(entry.get("path"), str)
+        )
+        return RepositoryFiles(
+            cast("tuple[str, ...]", paths), fields.get("truncated") is True
+        )
 
     def _get(self, path: str) -> object:
         """GET ``path`` and decode the JSON body.

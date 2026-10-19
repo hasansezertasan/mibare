@@ -15,8 +15,12 @@ class Detection:
         backend_string: The backend string considered, as in ``pypi:owner/repo``.
         reason: Why it is offered (when ``found``) or why it is left out.
         found: Whether the repository has an entrypoint for this ecosystem.
+        notes: Remarks for the user about the search itself, such as a limit
+            that may have hidden an entrypoint; ``resolve()`` adds them to the
+            resolution's notes.
     """
 
     backend_string: str
     reason: str
     found: bool = field(default=True, kw_only=True)
+    notes: tuple[str, ...] = field(default=(), kw_only=True)

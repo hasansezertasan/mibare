@@ -249,11 +249,13 @@ class _Findings:
         exclusions: The backend strings a step considered and left out, each
             with the reason.
         skipped: The failure of each skipped step, by step name.
+        notes: Remarks from detectors about their own search, without repeats.
     """
 
     backends: dict[str, list[str]] = field(default_factory=dict)
     exclusions: list[Exclusion] = field(default_factory=list)
     skipped: dict[str, MibareError] = field(default_factory=dict)
+    notes: list[str] = field(default_factory=list)
 
 
 def _probe_aqua(repository: Repository, mise: Mise, findings: _Findings) -> None:
@@ -429,6 +431,8 @@ def _add_language_packages(
         return ()
     results, failure = _run_detectors(repository, github, ecosystems)
     _offer(findings.backends, [(ecosystem, d) for ecosystem, d in results if d.found])
+    for _, detection in results:
+        findings.notes.extend(n for n in detection.notes if n not in findings.notes)
     undetected = tuple(
         Exclusion(d.backend_string, d.reason) for _, d in results if not d.found
     )
@@ -520,11 +524,13 @@ class _Gathered(NamedTuple):
         candidates: The ranked candidates, best first.
         exclusions: The backend strings considered and left out.
         skipped: The failure of each skipped step, by step name.
+        notes: Remarks from detectors about their own search.
     """
 
     candidates: tuple[Candidate, ...]
     exclusions: tuple[Exclusion, ...]
     skipped: dict[str, MibareError]
+    notes: tuple[str, ...] = ()
 
 
 def _gather(
@@ -545,7 +551,7 @@ def _gather(
     language = _lookup_language(findings, repository, github, ecosystems)
     candidates, unusable = _rank(findings.backends, target, ecosystems, language)
     exclusions = (*findings.exclusions, *unusable, *undetected)
-    return _Gathered(candidates, exclusions, findings.skipped)
+    return _Gathered(candidates, exclusions, findings.skipped, tuple(findings.notes))
 
 
 def _try_host_platform() -> Platform | None:
@@ -598,12 +604,13 @@ def resolve(
     else:
         host, target = _try_host_platform(), platform
     mise_version = mise.version()
-    candidates, exclusions, skipped = _gather(parsed, mise, github, target, ecosystems)
+    gathered = _gather(parsed, mise, github, target, ecosystems)
+    candidates, exclusions, skipped, search_notes = gathered
     if not candidates and skipped:
         failure = next(iter(skipped.values()))
         raise failure
     skipped_notes = tuple(
         f"Skipped the {step} step: {why}" for step, why in skipped.items()
     )
-    notes = (*_platform_notes(target, host), *skipped_notes)
+    notes = (*_platform_notes(target, host), *skipped_notes, *search_notes)
     return Resolution(parsed, mise_version, candidates, exclusions, target, notes)

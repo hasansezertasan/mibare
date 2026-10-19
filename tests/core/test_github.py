@@ -166,40 +166,63 @@ def test_network_errors_raise_unavailable() -> None:
         _ = api.primary_language(REPO)
 
 
-def test_list_dir_returns_entry_names() -> None:
-    """A directory path lists the names of its entries."""
-    body = [{"name": "a", "type": "dir"}, {"name": "b", "type": "file"}]
-    path = "/repos/BurntSushi/ripgrep/contents/cmd"
-    transport = FakeTransport({path: (200, body)})
-
-    assert GitHubApi(transport, token=None).list_dir(REPO, "cmd") == ("a", "b")
+TREE_PATH = "/repos/BurntSushi/ripgrep/git/trees/HEAD?recursive=1"
 
 
-def test_list_dir_is_empty_when_absent_or_a_file() -> None:
-    """A missing path and a file both list nothing."""
-    file_path = "/repos/BurntSushi/ripgrep/contents/go.mod"
-    transport = FakeTransport({file_path: (200, {"type": "file"})})
-    api = GitHubApi(transport, token=None)
+def test_list_files_returns_every_file_path_in_one_request() -> None:
+    """The recursive tree gives all blob paths; directories are left out."""
+    tree = [
+        {"path": "cmd", "type": "tree"},
+        {"path": "cmd/a", "type": "tree"},
+        {"path": "cmd/a/main.go", "type": "blob"},
+        {"path": "go.mod", "type": "blob"},
+        {"path": "vendor/x", "type": "commit"},
+        {"type": "blob"},
+    ]
+    transport = FakeTransport({TREE_PATH: (200, {"tree": tree, "truncated": False})})
 
-    assert api.list_dir(REPO, "cmd") == ()
-    assert api.list_dir(REPO, "go.mod") == ()
+    files = GitHubApi(transport, token=None).list_files(REPO)
+
+    assert files.paths == ("cmd/a/main.go", "go.mod")
+    assert not files.truncated
+    assert len(transport.requests) == 1
 
 
-def test_list_dir_root_uses_the_contents_root() -> None:
-    """An empty path lists the repository root."""
-    path = "/repos/BurntSushi/ripgrep/contents"
-    transport = FakeTransport({path: (200, [{"name": "main.go"}])})
+def test_list_files_reports_a_truncated_listing() -> None:
+    """GitHub's ``truncated`` flag is passed on with the paths it did send."""
+    tree = [{"path": "a.go", "type": "blob"}]
+    transport = FakeTransport({TREE_PATH: (200, {"tree": tree, "truncated": True})})
 
-    assert GitHubApi(transport, token=None).list_dir(REPO, "") == ("main.go",)
+    files = GitHubApi(transport, token=None).list_files(REPO)
+
+    assert files.paths == ("a.go",)
+    assert files.truncated
 
 
-def test_list_dir_failure_is_github_unavailable() -> None:
+@pytest.mark.parametrize("body", [{}, {"tree": "x"}, [], {"tree": [3, "x"]}], ids=str)
+def test_list_files_is_empty_for_an_unreadable_tree(body: object) -> None:
+    """An unexpected body lists nothing."""
+    transport = FakeTransport({TREE_PATH: (200, body)})
+
+    files = GitHubApi(transport, token=None).list_files(REPO)
+
+    assert files.paths == ()
+    assert not files.truncated
+
+
+def test_list_files_of_an_empty_repository_is_empty() -> None:
+    """A 404 (no such tree) lists nothing."""
+    files = GitHubApi(FakeTransport(), token=None).list_files(REPO)
+
+    assert files.paths == ()
+
+
+def test_list_files_failure_is_github_unavailable() -> None:
     """A non-404 error status raises ``GitHubUnavailableError``."""
-    path = "/repos/BurntSushi/ripgrep/contents/cmd"
-    transport = FakeTransport({path: (500, {})})
+    transport = FakeTransport({TREE_PATH: (500, {})})
 
     with pytest.raises(GitHubUnavailableError):
-        _ = GitHubApi(transport, token=None).list_dir(REPO, "cmd")
+        _ = GitHubApi(transport, token=None).list_files(REPO)
 
 
 def _file_body(content: object, kind: str = "file") -> dict[str, object]:

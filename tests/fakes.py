@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from mibare.core.github import RepositoryFiles
 from mibare.core.mise import RegistryEntry
 
 if TYPE_CHECKING:
@@ -89,13 +90,18 @@ class FakeGitHub:
 
         ``error`` fails every call except the language lookup; ``language_error``
         fails only ``primary_language``.
+
+        Set ``truncated`` to mark the file listing as cut short.
         """
         self._assets = tuple(assets)
         self._language = language
         self._files = dict(files or {})
         self._error = error
         self._language_error = language_error
+        self.truncated = False
         self.calls = 0
+        self.tree_calls = 0
+        self.file_reads: list[str] = []
 
     def latest_release_assets(self, repository: Repository) -> tuple[str, ...]:
         """Return the fixture asset names, or fail with the fixture error.
@@ -109,20 +115,17 @@ class FakeGitHub:
             raise self._error
         return self._assets
 
-    def list_dir(self, repository: Repository, path: str) -> tuple[str, ...]:
-        """List the entries under ``path`` implied by the fixture file paths.
+    def list_files(self, repository: Repository) -> RepositoryFiles:
+        """List the fixture file paths, or fail with the fixture error.
 
         Returns:
-            tuple[str, ...]: Entry names in first-seen order; empty when none.
+            RepositoryFiles: The fixture paths, flagged truncated when asked.
         """
         del repository
-        prefix = f"{path.strip('/')}/" if path.strip("/") else ""
-        names = (
-            name.removeprefix(prefix).split("/", 1)[0]
-            for name in self._files
-            if name.startswith(prefix)
-        )
-        return tuple(dict.fromkeys(names))
+        self.tree_calls += 1
+        if self._error is not None:
+            raise self._error
+        return RepositoryFiles(tuple(sorted(self._files)), self.truncated)
 
     def primary_language(self, repository: Repository) -> str | None:
         """Return the fixture language, or fail with the fixture language error.
@@ -144,4 +147,5 @@ class FakeGitHub:
         del repository
         if self._error is not None:
             raise self._error
+        self.file_reads.append(name)
         return self._files.get(name)
