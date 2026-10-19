@@ -95,8 +95,13 @@ def resolve(repository: str, mise: Mise) -> Resolution:
     """
     parsed = parse_repository(repository)
     mise_version = mise.version()
+    backends: list[str] = []
     for entry in mise.registry():
         if any(_points_at(parsed, backend) for backend in entry.backends):
-            candidates = tuple(Candidate(b) for b in entry.backends)
-            return Resolution(parsed, mise_version, candidates)
-    return Resolution(parsed, mise_version, ())
+            backends.extend(entry.backends)
+            break
+    aqua = f"aqua:{parsed.shorthand}"
+    if aqua not in backends and mise.recipe_exists(aqua):
+        backends.append(aqua)
+    candidates = tuple(Candidate(b) for b in dict.fromkeys(backends))
+    return Resolution(parsed, mise_version, candidates)
