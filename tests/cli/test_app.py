@@ -15,6 +15,7 @@ from mibare.core.errors import (
     MibareError,
     MiseNotFoundError,
     MiseTooOldError,
+    RepositoryNotFoundError,
 )
 from mibare.core.github import GitHubApi
 from mibare.core.mise import RegistryEntry, SubprocessMise
@@ -185,6 +186,7 @@ def test_no_backend_exits_1(runner: CliRunner, monkeypatch: pytest.MonkeyPatch) 
     "error",
     [
         InvalidRepositoryError("Not a GitHub repository: 'x'."),
+        RepositoryNotFoundError("repository owner/name was not found on GitHub."),
         MiseNotFoundError(
             "mise was not found on PATH. Install it: https://mise.jdx.dev"
         ),

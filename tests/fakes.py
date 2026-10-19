@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
+import json
 from typing import TYPE_CHECKING
 
-from mibare.core.github import RepositoryFiles
+from mibare.core.github import HttpResponse, RepositoryFiles
 from mibare.core.mise import RegistryEntry
 
 if TYPE_CHECKING:
@@ -74,6 +75,33 @@ def entry(tool: str, *backends: str) -> RegistryEntry:
     return RegistryEntry(tool=tool, backends=backends)
 
 
+class FakeTransport:
+    """Answers GET requests from a table keyed by URL path."""
+
+    def __init__(
+        self,
+        routes: Mapping[str, tuple[int, object]] | None = None,
+        error: Exception | None = None,
+    ) -> None:
+        """Set the fixture responses (status, JSON body) or an error to raise."""
+        self.routes = dict(routes or {})
+        self.error = error
+        self.requests: list[tuple[str, dict[str, str]]] = []
+
+    def __call__(self, url: str, headers: Mapping[str, str]) -> HttpResponse:
+        """Record the request and answer it.
+
+        Returns:
+            HttpResponse: The fixture response, or 404 when there is none.
+        """
+        self.requests.append((url, dict(headers)))
+        if self.error is not None:
+            raise self.error
+        path = url.removeprefix("https://api.github.com")
+        status, body = self.routes.get(path, (404, {}))
+        return HttpResponse(status, json.dumps(body).encode())
+
+
 class FakeGitHub:
     """A GitHub adapter that answers from fixtures instead of the network."""
 
@@ -88,20 +116,35 @@ class FakeGitHub:
     ) -> None:
         """Set the fixture release assets, language and root files, or errors.
 
-        ``error`` fails every call except the language lookup; ``language_error``
-        fails only ``primary_language``.
+        ``error`` fails every call except the language lookup and the existence
+        check; ``language_error`` fails only ``primary_language``.
 
-        Set ``truncated`` to mark the file listing as cut short.
+        Set ``truncated`` to mark the file listing as cut short, ``exists`` to
+        ``False`` for a repository GitHub does not have, and ``exists_error``
+        to fail only ``repository_exists``.
         """
         self._assets = tuple(assets)
         self._language = language
         self._files = dict(files or {})
         self._error = error
         self._language_error = language_error
+        self.exists = True
+        self.exists_error: Exception | None = None
         self.truncated = False
         self.calls = 0
         self.tree_calls = 0
         self.file_reads: list[str] = []
+
+    def repository_exists(self, repository: Repository) -> bool:
+        """Say whether the fixture repository exists, or fail with its error.
+
+        Returns:
+            bool: The fixture answer.
+        """
+        del repository
+        if self.exists_error is not None:
+            raise self.exists_error
+        return self.exists
 
     def latest_release_assets(self, repository: Repository) -> tuple[str, ...]:
         """Return the fixture asset names, or fail with the fixture error.

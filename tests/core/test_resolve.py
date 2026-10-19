@@ -13,10 +13,12 @@ from mibare.core.errors import (
     MiseError,
     MiseNotFoundError,
     MiseTooOldError,
+    RepositoryNotFoundError,
 )
+from mibare.core.github import GitHubApi
 from mibare.core.platform import Platform
 from mibare.core.resolve import Resolution, resolve
-from tests.fakes import FakeGitHub, FakeMise, entry
+from tests.fakes import FakeGitHub, FakeMise, FakeTransport, entry
 
 HOST = Platform("macos", "arm64")
 RIPGREP = entry("ripgrep", "aqua:BurntSushi/ripgrep", "ubi:BurntSushi/ripgrep")
@@ -968,3 +970,68 @@ def test_no_platform_on_an_unsupported_host_still_raises(
 
     with pytest.raises(InvalidPlatformError, match="pass --platform"):
         _ = resolve("BurntSushi/ripgrep", FakeMise([RIPGREP]))
+
+
+def test_a_repository_that_does_not_exist_is_an_error() -> None:
+    """A definite 404 for the repository is an error, not 'no backend'.
+
+    Given:
+        - A GitHub adapter that reports the repository does not exist.
+    When:
+        - The repository is resolved, even with a registry entry for it.
+    Then:
+        - ``RepositoryNotFoundError`` says the repository was not found.
+    """
+    github = FakeGitHub()
+    github.exists = False
+
+    with pytest.raises(
+        RepositoryNotFoundError,
+        match="repository BurntSushi/ripgrep was not found on GitHub",
+    ):
+        _ = resolve("BurntSushi/ripgrep", FakeMise([RIPGREP]), HOST, github=github)
+
+
+def test_a_failed_existence_check_keeps_the_offline_candidates() -> None:
+    """A network error is not a 404: registry and aqua candidates survive it.
+
+    Given:
+        - A registry entry and an aqua recipe, with the existence check failing.
+    When:
+        - The repository is resolved.
+    Then:
+        - The candidates are kept and nothing is raised.
+    """
+    mise = FakeMise([RIPGREP], recipes=["aqua:BurntSushi/ripgrep"])
+    github = FakeGitHub()
+    github.exists_error = GitHubUnavailableError("could not reach GitHub")
+
+    resolution = resolve("BurntSushi/ripgrep", mise, HOST, github=github)
+
+    assert [c.backend_string for c in resolution.candidates] == [
+        "aqua:BurntSushi/ripgrep",
+        "ubi:BurntSushi/ripgrep",
+    ]
+
+
+def test_the_existence_check_is_not_made_without_a_github_adapter() -> None:
+    """``resolve()`` stays offline by default: a repository is never checked."""
+    resolution = resolve("owner/doesnotexist", FakeMise(), HOST)
+
+    assert resolution.candidates == ()
+
+
+def test_resolving_through_the_real_adapter_reports_a_missing_repository() -> None:
+    """A fake transport answering 404 for the repository makes it an error."""
+    transport = FakeTransport()
+
+    with pytest.raises(RepositoryNotFoundError, match="owner/doesnotexist"):
+        _ = resolve(
+            "owner/doesnotexist",
+            FakeMise(),
+            HOST,
+            github=GitHubApi(transport, token=None),
+        )
+    assert [url for url, _ in transport.requests] == [
+        "https://api.github.com/repos/owner/doesnotexist"
+    ]

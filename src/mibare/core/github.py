@@ -78,6 +78,10 @@ class Transport(Protocol):
 class GitHub(Protocol):
     """The interface ``resolve()`` needs from GitHub, replaceable in tests."""
 
+    def repository_exists(self, repository: Repository) -> bool:
+        """Return whether the repository exists; only a 404 means it does not."""
+        raise NotImplementedError
+
     def latest_release_assets(self, repository: Repository) -> tuple[str, ...]:
         """Return the asset names of the latest release; empty when none."""
         raise NotImplementedError
@@ -156,6 +160,7 @@ class GitHubApi:
             token: A GitHub token; defaults to ``GITHUB_TOKEN`` when ``None``.
         """
         self._transport: Transport = transport
+        self._repositories: dict[str, object] = {}
         self._token: str | None = (
             token if token is not None else os.environ.get("GITHUB_TOKEN")
         )
@@ -192,11 +197,36 @@ class GitHubApi:
         Returns:
             str | None: The language GitHub reports, or ``None``.
         """
-        body = self._get(f"/repos/{repository.shorthand}")
+        body = self._repository_body(repository)
         if not isinstance(body, dict):
             return None
         language = cast("dict[str, object]", body).get("language")
         return language if isinstance(language, str) else None
+
+    def repository_exists(self, repository: Repository) -> bool:
+        """Say whether GitHub has the repository.
+
+        The response is kept, so a later :meth:`primary_language` costs no
+        further request.
+
+        Args:
+            repository: The repository to look up.
+
+        Returns:
+            bool: ``False`` only when GitHub answers 404.
+        """
+        return self._repository_body(repository) is not None
+
+    def _repository_body(self, repository: Repository) -> object:
+        """Fetch ``/repos/{owner}/{name}`` once per repository.
+
+        Returns:
+            object: The decoded body, or ``None`` when GitHub answers 404.
+        """
+        key = repository.shorthand
+        if key not in self._repositories:
+            self._repositories[key] = self._get(f"/repos/{key}")
+        return self._repositories[key]
 
     def root_file(self, repository: Repository, name: str) -> str | None:
         """Return the text of a file in the repository.

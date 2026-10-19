@@ -13,6 +13,7 @@ from mibare.core.errors import (
     InvalidPlatformError,
     MibareError,
     MiseError,
+    RepositoryNotFoundError,
 )
 from mibare.core.platform import Platform, host_platform
 from mibare.core.repository import Repository, parse_repository
@@ -537,6 +538,24 @@ class _Gathered(NamedTuple):
     notes: tuple[str, ...] = ()
 
 
+def _require_existing(repository: Repository, github: GitHub) -> None:
+    """Fail when GitHub definitely has no such repository.
+
+    A GitHub failure leaves the question open, so the offline candidates are
+    kept and the later steps record their own failures.
+
+    Raises:
+        RepositoryNotFoundError: If GitHub answers 404 for the repository.
+    """
+    try:
+        exists = github.repository_exists(repository)
+    except GitHubUnavailableError:
+        return
+    if not exists:
+        message = f"repository {repository.shorthand} was not found on GitHub."
+        raise RepositoryNotFoundError(message)
+
+
 def _gather(
     repository: Repository,
     mise: Mise,
@@ -550,6 +569,8 @@ def _gather(
         _Gathered: The candidates, the exclusions and the skipped steps.
     """
     findings = _found_backends(repository, mise)
+    if github is not None:
+        _require_existing(repository, github)
     _add_github(findings, repository, mise, github, target)
     undetected = _add_language_packages(
         findings, repository, github, target, ecosystems

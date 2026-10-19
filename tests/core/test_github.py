@@ -5,7 +5,6 @@ from __future__ import annotations
 import base64
 import http.client
 import io
-import json
 import urllib.error
 import urllib.request
 from email.message import Message
@@ -16,38 +15,12 @@ import pytest
 from mibare.core.errors import GitHubUnavailableError
 from mibare.core.github import GitHubApi, HttpResponse, urllib_transport
 from mibare.core.repository import Repository
+from tests.fakes import FakeTransport
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
 
 REPO = Repository("BurntSushi", "ripgrep")
-
-
-class FakeTransport:
-    """Answers GET requests from a table keyed by URL path."""
-
-    def __init__(
-        self,
-        routes: Mapping[str, tuple[int, object]] | None = None,
-        error: Exception | None = None,
-    ) -> None:
-        """Set the fixture responses (status, JSON body) or an error to raise."""
-        self.routes = dict(routes or {})
-        self.error = error
-        self.requests: list[tuple[str, dict[str, str]]] = []
-
-    def __call__(self, url: str, headers: Mapping[str, str]) -> HttpResponse:
-        """Record the request and answer it.
-
-        Returns:
-            HttpResponse: The fixture response, or 404 when there is none.
-        """
-        self.requests.append((url, dict(headers)))
-        if self.error is not None:
-            raise self.error
-        path = url.removeprefix("https://api.github.com")
-        status, body = self.routes.get(path, (404, {}))
-        return HttpResponse(status, json.dumps(body).encode())
 
 
 def test_latest_release_assets_lists_asset_names() -> None:
@@ -74,6 +47,39 @@ def test_primary_language_is_read_from_the_repository() -> None:
     })
 
     assert GitHubApi(transport, token=None).primary_language(REPO) == "Rust"
+
+
+def test_repository_exists_is_true_for_a_200_and_false_for_a_404() -> None:
+    """Only a definite 404 means the repository does not exist."""
+    found = FakeTransport({"/repos/BurntSushi/ripgrep": (200, {"language": "Rust"})})
+
+    assert GitHubApi(found, token=None).repository_exists(REPO) is True
+    assert GitHubApi(FakeTransport(), token=None).repository_exists(REPO) is False
+
+
+def test_repository_exists_raises_unavailable_on_other_failures() -> None:
+    """A network error or a server error is not an answer about existence."""
+    down = GitHubApi(FakeTransport(error=OSError("offline")), token=None)
+    broken = GitHubApi(
+        FakeTransport({"/repos/BurntSushi/ripgrep": (500, {})}), token=None
+    )
+
+    with pytest.raises(GitHubUnavailableError):
+        _ = down.repository_exists(REPO)
+    with pytest.raises(GitHubUnavailableError):
+        _ = broken.repository_exists(REPO)
+
+
+def test_the_primary_language_reuses_the_existence_response() -> None:
+    """One request to the repository endpoint serves both questions."""
+    transport = FakeTransport({
+        "/repos/BurntSushi/ripgrep": (200, {"language": "Rust"})
+    })
+    api = GitHubApi(transport, token=None)
+
+    assert api.repository_exists(REPO) is True
+    assert api.primary_language(REPO) == "Rust"
+    assert len(transport.requests) == 1
 
 
 @pytest.mark.parametrize("body", [{"language": None}, {}])

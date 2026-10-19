@@ -10,6 +10,7 @@ __all__ = [
     "MiseError",
     "MiseNotFoundError",
     "MiseTooOldError",
+    "RepositoryNotFoundError",
 ]
 
 
@@ -27,6 +28,10 @@ class InvalidPlatformError(MibareError):
 
 class GitHubUnavailableError(MibareError):
     """The GitHub API could not be used: no network, a rate limit or a server error."""
+
+
+class RepositoryNotFoundError(MibareError):
+    """GitHub has no repository with the given owner and name."""
 
 
 class MiseError(MibareError):
