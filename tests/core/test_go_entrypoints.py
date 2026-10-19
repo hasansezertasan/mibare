@@ -312,6 +312,26 @@ def test_a_cmd_directory_with_its_own_go_mod_uses_that_module_path() -> None:
     assert any("own module" in reason for reason in nested.reasons)
 
 
+def test_a_limit_hit_by_the_last_go_mod_reads_is_still_noted() -> None:
+    """The note is taken after every entrypoint is resolved, not as each is found."""
+    files = {"go.mod": GO_MOD, "main.go": MAIN}
+    files.update({f"cmd/a{i:02}/main.go": LIB for i in range(MAX_FILE_READS - 5)})
+    for name in ("n", "o"):
+        files[f"cmd/{name}/main.go"] = MAIN
+        files[f"cmd/{name}/go.mod"] = f"module example.com/{name}\n"
+    github = FakeGitHub(files=files)
+
+    resolution = resolve(TOOL, FakeMise(), LINUX_X64, github=github)
+
+    assert sorted(_backends(resolution)) == [
+        "go:example.com/n",
+        "go:github.com/owner/tool",
+    ]
+    assert "cmd/n/go.mod" in github.file_reads
+    assert "cmd/o/go.mod" not in github.file_reads
+    assert any("Go search was limited" in note for note in resolution.notes)
+
+
 def test_an_intervening_module_boundary_names_the_package_path() -> None:
     """``cmd/go.mod`` makes ``cmd/tool`` the package ``<that module>/tool``."""
     files = {

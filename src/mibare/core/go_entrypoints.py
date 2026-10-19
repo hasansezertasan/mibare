@@ -279,12 +279,14 @@ def detect_go(
         _entrypoint(reader, directory, paths, (module, suffix))
         for directory in sorted(mains, key=lambda d: (bool(d), d))
     )
-    found = [
-        Detection(backend, reason, notes=reader.note)
-        for backend, reason in filter(None, entrypoints)
-    ]
-    if found:
-        return found
+    # Resolve every entrypoint first: later go.mod reads can spend the budget,
+    # so the note is only complete once they have all run.
+    resolved = list(filter(None, entrypoints))
+    if resolved:
+        return [
+            Detection(backend, reason, notes=reader.note)
+            for backend, reason in resolved
+        ]
     reason = "no package main in the root or under cmd/"
     if go_mod is None:
         reason = "no go.mod in the repository root and " + reason
