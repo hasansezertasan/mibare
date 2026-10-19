@@ -47,3 +47,27 @@ _Avoid_: Priority, score
 **Legacy backend**:
 A backend that mise documents as discouraged or deprecated (`asdf`, `vfox`, `ubi`). Candidates using one are flagged with a warning.
 _Avoid_: Old backend, deprecated backend
+
+**Resolution**:
+The outcome of resolving a repository: the ranked candidates, the recommendation, the exclusions and any notes about skipped steps.
+_Avoid_: Result, report
+
+**Exclusion**:
+A backend string that was considered and left out, kept with the reason so the user can see why.
+_Avoid_: Rejection, filtered candidate
+
+**Ecosystem**:
+A language-package family (Python, Rust, Node, Go) with its own backend and its own kind of entrypoint.
+_Avoid_: Language backend, stack
+
+**Detection**:
+The finding of whether a repository declares an entrypoint for one ecosystem, with the reason.
+_Avoid_: Scan, probe
+
+**Platform**:
+The operating system and architecture a tool is to be installed for, written `os-arch`. It defaults to the host.
+_Avoid_: Target machine, environment
+
+**Reason**:
+A short sentence saying why a candidate was included or an exclusion was made.
+_Avoid_: Explanation, justification

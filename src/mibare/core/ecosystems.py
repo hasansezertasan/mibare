@@ -49,7 +49,7 @@ class Detector(Protocol):
     def __call__(
         self, repository: Repository, github: GitHub
     ) -> Detection | Sequence[Detection]:
-        """Return the detection for ``repository``, or one per binary."""
+        """Return the detection for ``repository``, or one per entrypoint."""
         raise NotImplementedError
 
 

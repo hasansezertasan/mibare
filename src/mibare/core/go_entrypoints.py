@@ -1,12 +1,13 @@
 """Go entrypoint detection: a ``package main`` at the root or under ``cmd/<name>``.
 
-A Go repository installs with ``go:<module path>``, plus ``/cmd/<name>`` for a
-binary that lives in a subdirectory, so one candidate is offered per binary.
+A Go repository installs with ``go:<module path>``, plus ``/cmd/<name>`` for an
+entrypoint that lives in a subdirectory, so one candidate is offered per
+entrypoint.
 
 Reading is bounded to spare the GitHub rate limit: a directory is searched in
 file-name order (``main.go`` first), stops at the first ``package main``, and
 reads at most :data:`MAX_FILES_PER_DIR` ``.go`` files. At most
-:data:`MAX_CMD_DIRS` directories under ``cmd/`` are searched. A binary hidden
+:data:`MAX_CMD_DIRS` directories under ``cmd/`` are searched. An entrypoint hidden
 behind that many other files or directories is missed.
 """
 
@@ -101,7 +102,7 @@ def detect_go(repository: Repository, github: GitHub) -> list[Detection]:
             f"go:{module}{subpath}",
             f"{where} declares package main{note if go_mod is None else ''}",
         )
-        for subpath, where in _binaries(repository, github)
+        for subpath, where in _entrypoints(repository, github)
     ]
     if found:
         return found
@@ -111,20 +112,20 @@ def detect_go(repository: Repository, github: GitHub) -> list[Detection]:
     return [Detection(f"go:{module}", reason, found=False)]
 
 
-def _binaries(repository: Repository, github: GitHub) -> list[tuple[str, str]]:
+def _entrypoints(repository: Repository, github: GitHub) -> list[tuple[str, str]]:
     """Find the directories that declare ``package main``.
 
     Returns:
         list[tuple[str, str]]: A (module subpath, description) pair per
-            binary: the root first, then each ``cmd/<name>``.
+            entrypoint: the root first, then each ``cmd/<name>``.
     """
-    binaries: list[tuple[str, str]] = []
+    entrypoints: list[tuple[str, str]] = []
     if _has_main(repository, github, ""):
-        binaries.append(("", "the root"))
+        entrypoints.append(("", "the root"))
     names = github.list_dir(repository, "cmd")[:MAX_CMD_DIRS]
-    binaries.extend(
+    entrypoints.extend(
         (f"/cmd/{name}", f"cmd/{name}")
         for name in names
         if _has_main(repository, github, f"cmd/{name}")
     )
-    return binaries
+    return entrypoints

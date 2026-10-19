@@ -373,7 +373,7 @@ def _detect_one(
 
     Returns:
         tuple[Detection, ...] | GitHubUnavailableError: The detections (one
-            per binary for a multi-binary repository) or the failure.
+            per entrypoint for a multi-entrypoint repository) or the failure.
     """
     try:
         detected = ecosystem.detect(repository, github)
@@ -385,7 +385,7 @@ def _detect_one(
 def _primary_language(
     repository: Repository, github: GitHub
 ) -> tuple[str | None, GitHubUnavailableError | None]:
-    """Look up the primary language, tolerating a GitHub failure.
+    """Read the primary language from GitHub, tolerating a GitHub failure.
 
     Returns:
         tuple[str | None, GitHubUnavailableError | None]: The language, or
@@ -450,7 +450,7 @@ def _lookup_language(
     github: GitHub | None,
     ecosystems: Sequence[Ecosystem],
 ) -> str | None:
-    """Look up the primary language when language packages compete for a tier.
+    """Read the primary language from GitHub when language packages compete for a tier.
 
     The lookup is skipped when fewer than two language-package candidates were
     found, since there is nothing to order. A GitHub failure is recorded as a
