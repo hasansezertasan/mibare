@@ -93,11 +93,16 @@ def test_run_process_runs_with_exactly_the_given_environment(tmp_path: Path) -> 
         - The command sees the explicit variable, not the user's, and runs in
           the requested directory.
     """
-    script = "import os; print(os.environ.get('MIBARE_A'), os.environ.get('PATH'))"
+    script = (
+        "import os; print(os.environ.get('MIBARE_A')); "
+        "print(os.environ.get('PATH')); print(os.getcwd())"
+    )
 
     done = run_process([sys.executable, "-c", script], {"MIBARE_A": "1"}, tmp_path)
 
-    assert done.stdout.split() == ["1", "None"]
+    variable, path, cwd = done.stdout.splitlines()
+    assert (variable, path) == ("1", "None")
+    assert Path(cwd).resolve() == tmp_path.resolve()
 
 
 def test_run_process_reports_a_missing_executable() -> None:
