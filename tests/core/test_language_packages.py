@@ -110,7 +110,7 @@ def test_without_a_github_adapter_the_step_is_left_out() -> None:
     resolution = resolve(TOOL, FakeMise(), LINUX_X64)
 
     assert resolution.candidates == ()
-    assert resolution.exclusions == ()
+    assert [x.backend_string for x in resolution.exclusions] == ["aqua:owner/tool"]
 
 
 def test_step_failure_keeps_earlier_results_and_names_the_skipped_step() -> None:

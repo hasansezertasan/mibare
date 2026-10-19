@@ -230,10 +230,13 @@ class _Findings:
     Attributes:
         backends: Each backend string found, with the reasons it was found,
             in discovery order.
+        exclusions: The backend strings a step considered and left out, each
+            with the reason.
         skipped: The failure of each skipped step, by step name.
     """
 
     backends: dict[str, list[str]] = field(default_factory=dict)
+    exclusions: list[Exclusion] = field(default_factory=list)
     skipped: dict[str, MibareError] = field(default_factory=dict)
 
 
@@ -252,6 +255,9 @@ def _probe_aqua(repository: Repository, mise: Mise, findings: _Findings) -> None
         return
     if exists:
         findings.backends[aqua] = ["mise can list versions for this aqua recipe"]
+    else:
+        reason = "mise has no aqua recipe for this repository"
+        findings.exclusions.append(Exclusion(aqua, reason))
 
 
 def _found_backends(repository: Repository, mise: Mise) -> _Findings:
@@ -274,7 +280,7 @@ def _found_backends(repository: Repository, mise: Mise) -> _Findings:
 
 def _github_release(
     repository: Repository, mise: Mise, github: GitHub, target: Platform
-) -> list[str]:
+) -> tuple[list[str], str]:
     """Run the ``github:`` step: offer it when a release has a platform asset.
 
     Args:
@@ -284,15 +290,18 @@ def _github_release(
         target: The platform the asset must be built for.
 
     Returns:
-        list[str]: The reasons to offer ``github:owner/repo``; empty when it
-            should not be offered.
+        tuple[list[str], str]: The reasons to offer ``github:owner/repo``, or
+            no reasons and why it should not be offered.
     """
     if not mise.recipe_exists(f"github:{repository.shorthand}"):
-        return []
-    matches = matching_assets(github.latest_release_assets(repository), target)
+        return [], "mise cannot list versions of this github repository"
+    assets = github.latest_release_assets(repository)
+    if not assets:
+        return [], "the repository has no release with assets"
+    matches = matching_assets(assets, target)
     if not matches:
-        return []
-    return [f"the latest release has an asset for {target.label}: {matches[0]}"]
+        return [], f"the latest release has no asset for {target.label}"
+    return [f"the latest release has an asset for {target.label}: {matches[0]}"], ""
 
 
 def _add_github(
@@ -310,12 +319,14 @@ def _add_github(
     if github is None or backend in findings.backends:
         return
     try:
-        reasons = _github_release(repository, mise, github, target)
+        reasons, why_not = _github_release(repository, mise, github, target)
     except (GitHubUnavailableError, MiseError) as error:
         findings.skipped["github:"] = error
         return
     if reasons:
         findings.backends[backend] = reasons
+    else:
+        findings.exclusions.append(Exclusion(backend, why_not))
 
 
 def _run_detectors(
@@ -459,8 +470,9 @@ def _gather(
     findings = _found_backends(repository, mise)
     _add_github(findings, repository, mise, github, target)
     misses = _add_language_packages(findings, repository, github, ecosystems)
-    candidates, exclusions = _rank(findings.backends, target)
-    return candidates, (*exclusions, *misses), findings.skipped
+    candidates, unusable = _rank(findings.backends, target)
+    exclusions = (*findings.exclusions, *unusable, *misses)
+    return candidates, exclusions, findings.skipped
 
 
 def resolve(

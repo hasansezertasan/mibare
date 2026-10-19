@@ -759,3 +759,56 @@ def test_failed_probes_with_no_candidates_raise_instead_of_no_backend() -> None:
 
     with pytest.raises(MiseError, match="network down"):
         _ = resolve(TOOL, mise, LINUX_X64)
+
+
+def _excluded(resolution: Resolution) -> dict[str, str]:
+    """Map each excluded backend string to its reason.
+
+    Returns:
+        dict[str, str]: The exclusions by backend string.
+    """
+    return {x.backend_string: x.reason for x in resolution.exclusions}
+
+
+def test_a_missing_aqua_recipe_is_explained_as_an_exclusion() -> None:
+    """Explain why aqua is not a candidate when mise has no recipe for it."""
+    resolution = resolve(TOOL, FakeMise(), LINUX_X64)
+
+    reason = _excluded(resolution)["aqua:owner/tool"]
+    assert "recipe" in reason
+    assert resolution.to_dict()["excluded"] == [
+        {"backend_string": "aqua:owner/tool", "reason": reason}
+    ]
+
+
+def test_an_aqua_backend_found_by_the_registry_is_not_excluded() -> None:
+    """Do not report aqua as excluded when the registry already lists it."""
+    resolution = resolve(TOOL, FakeMise([entry("tool", "aqua:owner/tool")]))
+
+    assert "aqua:owner/tool" not in _excluded(resolution)
+
+
+def test_a_github_repository_mise_cannot_list_is_explained() -> None:
+    """Explain why github: is not a candidate when the mise probe finds nothing."""
+    resolution = resolve(TOOL, FakeMise(), LINUX_X64, github=FakeGitHub(TOOL_ASSETS))
+
+    assert "mise" in _excluded(resolution)[GITHUB_TOOL]
+
+
+def test_a_release_without_an_asset_for_the_platform_is_explained() -> None:
+    """Name the platform the latest release has no asset for."""
+    mise = FakeMise(recipes=[GITHUB_TOOL])
+    github = FakeGitHub(["tool-darwin-arm64.tar.gz"])
+
+    resolution = resolve(TOOL, mise, LINUX_X64, github=github)
+
+    assert "linux-x64" in _excluded(resolution)[GITHUB_TOOL]
+
+
+def test_a_repository_without_a_release_is_explained() -> None:
+    """Explain a github: exclusion when there is no release to take assets from."""
+    mise = FakeMise(recipes=[GITHUB_TOOL])
+
+    resolution = resolve(TOOL, mise, LINUX_X64, github=FakeGitHub())
+
+    assert "release" in _excluded(resolution)[GITHUB_TOOL]
