@@ -8,6 +8,7 @@ argument, prints the resolution and maps the outcome onto an exit code.
 
 from __future__ import annotations
 
+import json
 from typing import Annotated
 
 import typer
@@ -15,7 +16,7 @@ import typer
 from mibare.core.errors import MibareError
 from mibare.core.mise import SubprocessMise
 from mibare.core.platform import Platform
-from mibare.core.resolve import Resolution, resolve
+from mibare.core.resolve import Candidate, Resolution, resolve
 
 __all__ = ["app", "main"]
 
@@ -42,24 +43,56 @@ def _subject(resolution: Resolution) -> str:
     return f"{resolution.repository.shorthand} ({mise} registry)"
 
 
-def _render(resolution: Resolution) -> str:
+def _render(resolution: Resolution, *, verbose: bool = False) -> str:
     """Format a resolution for the terminal.
 
     Args:
         resolution: The resolution to show.
+        verbose: Whether to also list the excluded candidates.
 
     Returns:
         str: The text to print; the recommendation is marked.
     """
-    lines = [_subject(resolution)]
+    if resolution.recommendation is None:
+        lines = [f"No backend found for {_subject(resolution)}."]
+    else:
+        lines = [_subject(resolution)]
     for index, candidate in enumerate(resolution.candidates):
-        marker = "*" if index == 0 else " "
-        suffix = "  (recommended)" if index == 0 else ""
-        lines.append(f"{marker} {candidate.backend_string}{suffix}")
-        if candidate.warning:
-            lines.append(f"    warning: {candidate.warning}")
+        lines.extend(_candidate_lines(candidate, recommended=index == 0))
     lines.extend(f"note: {note}" for note in resolution.notes)
+    if verbose:
+        lines.extend(_exclusion_lines(resolution))
     return "\n".join(lines)
+
+
+def _candidate_lines(candidate: Candidate, *, recommended: bool) -> list[str]:
+    """Format one candidate: backend string, tier, reasons, warning, command.
+
+    Returns:
+        list[str]: The lines to print.
+    """
+    marker = "*" if recommended else " "
+    suffix = "  (recommended)" if recommended else ""
+    tier = f"  [tier {candidate.tier}]" if candidate.tier is not None else ""
+    lines = [f"{marker} {candidate.backend_string}{tier}{suffix}"]
+    lines.extend(f"    - {reason}" for reason in candidate.reasons)
+    if candidate.warning:
+        lines.append(f"    warning: {candidate.warning}")
+    lines.append(f"    $ {candidate.mise_use}")
+    return lines
+
+
+def _exclusion_lines(resolution: Resolution) -> list[str]:
+    """Format the excluded candidates for ``--verbose``.
+
+    Returns:
+        list[str]: The lines to print.
+    """
+    if not resolution.exclusions:
+        return ["Excluded: none"]
+    return ["Excluded:"] + [
+        f"  {x.backend_string}: {x.reason}" for x in resolution.exclusions
+    ]
 
 
 @app.command()
@@ -67,12 +100,22 @@ def main(
     repository: Annotated[
         str, typer.Argument(help="A GitHub URL or owner/repo shorthand.")
     ],
+    *,
     platform: Annotated[
         str | None,
         typer.Option(
             help="Target platform as os-arch, such as linux-x64; defaults to the host."
         ),
     ] = None,
+    json_output: Annotated[
+        bool, typer.Option("--json", help="Print the resolution as JSON.")
+    ] = False,
+    verbose: Annotated[
+        bool,
+        typer.Option(
+            "--verbose", help="Also explain which candidates were excluded and why."
+        ),
+    ] = False,
 ) -> None:
     """Recommend which mise backend to install a GitHub repository with.
 
@@ -92,7 +135,9 @@ def main(
     except MibareError as error:
         typer.echo(f"Error: {error}", err=True)
         raise typer.Exit(code=EXIT_ERROR) from None
+    if json_output:
+        typer.echo(json.dumps(resolution.to_dict(), indent=2))
+    else:
+        typer.echo(_render(resolution, verbose=verbose))
     if resolution.recommendation is None:
-        typer.echo(f"No backend found for {_subject(resolution)}.")
         raise typer.Exit(code=EXIT_NO_BACKEND)
-    typer.echo(_render(resolution))

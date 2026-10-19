@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+
 import pytest
 
 import mibare.core.resolve as resolve_module
@@ -408,6 +410,132 @@ def test_platform_rejects_anything_but_a_known_os_arch(text: str) -> None:
         Platform.parse(text)
 
 
+def test_registry_candidates_carry_reasons_and_a_mise_use_command() -> None:
+    """Each candidate explains itself and gives a ready-to-paste command.
+
+    Given:
+        - A registry entry named ``rg`` listing two backends.
+    When:
+        - ``BurntSushi/ripgrep`` is resolved.
+    Then:
+        - Every candidate has a reason naming the registry entry and a
+          ``mise use`` command for its backend string.
+    """
+    resolution = resolve("BurntSushi/ripgrep", FakeMise([RIPGREP]))
+
+    assert [c.mise_use for c in resolution.candidates] == [
+        "mise use aqua:BurntSushi/ripgrep",
+        "mise use ubi:BurntSushi/ripgrep",
+    ]
+    assert all(
+        any("registry" in reason and "ripgrep" in reason for reason in c.reasons)
+        for c in resolution.candidates
+    )
+
+
+def test_mise_use_quotes_backend_strings_for_the_shell() -> None:
+    """A backend string with options is quoted so it pastes safely.
+
+    Given:
+        - A registry backend with a bracketed option.
+    When:
+        - It is resolved.
+    Then:
+        - The command quotes the backend string.
+    """
+    backend = "github:BurntSushi/ripgrep[exe=rg]"
+    resolution = resolve("BurntSushi/ripgrep", FakeMise([entry("rg", backend)]))
+
+    assert resolution.candidates[0].mise_use == f"mise use '{backend}'"
+
+
+def test_a_resolution_with_no_exclusions_reports_none() -> None:
+    """The registry step excludes nothing, so the exclusion list is empty."""
+    resolution = resolve("BurntSushi/ripgrep", FakeMise([RIPGREP]))
+
+    assert resolution.exclusions == ()
+
+
+def test_to_dict_has_a_stable_shape() -> None:
+    """The dict form is the documented JSON shape.
+
+    Given:
+        - A resolved repository with two candidates.
+    When:
+        - It is converted to a dict.
+    Then:
+        - It has exactly the documented keys, including the mise version, and
+          the recommendation is the first candidate.
+    """
+    resolution = resolve("BurntSushi/ripgrep", FakeMise([RIPGREP]))
+    data = json.loads(json.dumps(resolution.to_dict()))
+
+    assert list(data) == [
+        "schema_version",
+        "repository",
+        "mise_version",
+        "recommendation",
+        "candidates",
+        "excluded",
+        "platform",
+        "notes",
+    ]
+    assert data["schema_version"] == 1
+    assert data["repository"] == "BurntSushi/ripgrep"
+    assert data["mise_version"] == "2026.10.13"
+    assert data["recommendation"] == "aqua:BurntSushi/ripgrep"
+    candidates = data["candidates"]
+    assert isinstance(candidates, list)
+    assert list(candidates[0]) == [
+        "backend_string",
+        "recommended",
+        "tier",
+        "legacy",
+        "warning",
+        "command",
+        "reasons",
+    ]
+    assert [c["recommended"] for c in candidates] == [True, False]
+    assert candidates[1]["command"] == "mise use ubi:BurntSushi/ripgrep"
+    assert [c["tier"] for c in candidates] == [2, 5]
+    assert [c["legacy"] for c in candidates] == [False, True]
+    assert candidates[0]["warning"] is None
+    assert "ubi" in str(candidates[1]["warning"])
+    assert data["excluded"] == []
+    assert data["notes"] == []
+
+
+def test_a_windows_asdf_exclusion_is_recorded_with_its_reason() -> None:
+    """Dropping asdf for a Windows target is explained, not silent.
+
+    Given:
+        - A registry entry with aqua and asdf backends.
+    When:
+        - It is resolved for ``windows-x64`` and converted to a dict.
+    Then:
+        - ``excluded`` names asdf with a reason mentioning Windows.
+    """
+    registry = entry("tool", "aqua:o/r", "asdf:o/r")
+
+    resolution = resolve("o/r", FakeMise([registry]), Platform("windows", "x64"))
+
+    (excluded,) = resolution.exclusions
+    assert excluded.backend_string == "asdf:o/r"
+    assert "Windows" in excluded.reason
+    assert resolution.to_dict()["excluded"] == [
+        {"backend_string": "asdf:o/r", "reason": excluded.reason}
+    ]
+
+
+def test_to_dict_without_a_backend_has_a_null_recommendation() -> None:
+    """No backend found gives a null recommendation and no candidates."""
+    data = resolve("sharkdp/fd", FakeMise([RIPGREP])).to_dict()
+    assert isinstance(data["candidates"], list)
+
+    assert data["recommendation"] is None
+    assert data["candidates"] == []
+
+
 def test_aqua_recipe_without_a_registry_entry_is_a_candidate() -> None:
     """A repository with an aqua recipe but no registry entry resolves to aqua.
 
@@ -422,6 +550,8 @@ def test_aqua_recipe_without_a_registry_entry_is_a_candidate() -> None:
 
     assert [c.backend_string for c in resolution.candidates] == ["aqua:sharkdp/fd"]
     assert resolution.recommendation is resolution.candidates[0]
+    assert resolution.candidates[0].reasons
+    assert resolution.candidates[0].mise_use == "mise use aqua:sharkdp/fd"
 
 
 def test_no_aqua_recipe_means_no_aqua_candidate() -> None:
