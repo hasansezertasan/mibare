@@ -160,9 +160,15 @@ def resolve(repository: str, mise: Mise) -> Resolution:
     """
     parsed = parse_repository(repository)
     mise_version = mise.version()
+    found: dict[str, list[str]] = {}
     for entry in mise.registry():
         if any(_points_at(parsed, backend) for backend in entry.backends):
             reason = f"listed in the mise registry as {entry.tool!r}"
-            candidates = tuple(Candidate(b, (reason,)) for b in entry.backends)
-            return Resolution(parsed, mise_version, candidates)
-    return Resolution(parsed, mise_version, ())
+            for backend in entry.backends:
+                found.setdefault(backend, []).append(reason)
+            break
+    aqua = f"aqua:{parsed.shorthand}"
+    if aqua not in found and mise.recipe_exists(aqua):
+        found[aqua] = ["mise can list versions for this aqua recipe"]
+    candidates = tuple(Candidate(b, tuple(r)) for b, r in found.items())
+    return Resolution(parsed, mise_version, candidates)
