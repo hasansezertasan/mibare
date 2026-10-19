@@ -9,17 +9,12 @@ tie-break and the reasons.
 from __future__ import annotations
 
 import json
-import sys
+import tomllib
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Protocol, cast
 
 from mibare.core.detection import Detection
 from mibare.core.go_entrypoints import detect_go
-
-if sys.version_info >= (3, 11):
-    import tomllib  # pyright: ignore[reportUnreachable]
-else:
-    import tomli as tomllib
 
 if TYPE_CHECKING:
     from collections.abc import Sequence

@@ -252,7 +252,7 @@ class GitHubApi:
             return None
         try:
             return base64.b64decode(content).decode()
-        except (binascii.Error, UnicodeDecodeError):
+        except binascii.Error, UnicodeDecodeError:
             return None
 
     def list_files(self, repository: Repository) -> RepositoryFiles:
