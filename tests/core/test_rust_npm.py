@@ -243,6 +243,37 @@ def test_cargo_gated_bin_does_not_fall_back_to_src_main_rs() -> None:
     assert resolution.candidates == ()
 
 
+def test_cargo_builds_the_default_bin_beside_gated_ones_with_other_names() -> None:
+    """Gated bins named differently from the package leave src/main.rs buildable."""
+    manifest = _cargo("extra = []", 'dev:["extra"]')
+
+    resolution = _resolve({"Cargo.toml": manifest, "src/main.rs": "fn main() {}"})
+
+    assert _backends(resolution) == ["cargo:owner/tool"]
+
+
+def test_cargo_with_only_gated_bins_and_no_src_main_rs_is_excluded() -> None:
+    """Without a src/main.rs the gated bins are all there is."""
+    manifest = _cargo("extra = []", 'dev:["extra"]')
+
+    resolution = _resolve({"Cargo.toml": manifest})
+
+    assert resolution.candidates == ()
+    assert "required-features" in _excluded(resolution, "cargo:owner/tool")
+
+
+def test_cargo_with_autobins_off_and_only_gated_bins_is_excluded() -> None:
+    """``autobins = false`` removes the default bin even when src/main.rs exists."""
+    manifest = (
+        '[package]\nname = "tool"\nautobins = false\n[features]\nextra = []\n'
+        '[[bin]]\nname = "dev"\nrequired-features = ["extra"]\n'
+    )
+
+    resolution = _resolve({"Cargo.toml": manifest, "src/main.rs": "fn main() {}"})
+
+    assert resolution.candidates == ()
+
+
 def test_malformed_cargo_features_are_ignored() -> None:
     """A malformed ``[features]`` or ``required-features`` never crashes detection."""
     manifest = (

@@ -222,26 +222,56 @@ def _cargo_bin_detection(
     """
     backend_string = f"cargo:{repository.shorthand}"
     bins = _declared_bins(manifest)
-    if bins:
-        gated = _gated_bins(manifest, bins)
-        if len(gated) < len(bins):
-            return Detection(backend_string, "Cargo.toml declares a [[bin]] target")
-        reason = (
-            "every [[bin]] target in Cargo.toml has required-features that "
-            f"the default features do not enable ({'; '.join(gated)}), so "
-            "cargo install skips it"
-        )
-        return Detection(backend_string, reason, found=False)
-    if _autobins_disabled(manifest):
-        reason = (
-            "Cargo.toml sets autobins = false and declares no [[bin]] target, "
-            "so src/main.rs is not a bin target"
-        )
+    gated = _gated_bins(manifest, bins)
+    if bins and len(gated) < len(bins):
+        return Detection(backend_string, "Cargo.toml declares a [[bin]] target")
+    if _autobins_disabled(manifest) or _shadows_default_bin(manifest, bins):
+        reason = _no_bin_reason(bins, gated)
         return Detection(backend_string, reason, found=False)
     if github.root_file(repository, "src/main.rs") is not None:
         return Detection(backend_string, "the crate has a src/main.rs bin target")
     reason = "Cargo.toml declares no [[bin]] target and there is no src/main.rs"
+    if bins:
+        reason = f"{_no_bin_reason(bins, gated)}, and there is no src/main.rs"
     return Detection(backend_string, reason, found=False)
+
+
+def _shadows_default_bin(
+    manifest: dict[str, object], bins: list[dict[str, object]]
+) -> bool:
+    """Say whether a declared bin replaces the default ``src/main.rs`` bin.
+
+    Cargo names the default bin after the package, and a declared ``[[bin]]``
+    of the same name takes its place.
+
+    Returns:
+        bool: ``True`` when a declared bin has the package's name.
+    """
+    package = manifest.get("package")
+    name = (
+        cast("dict[str, object]", package).get("name")
+        if isinstance(package, dict)
+        else None
+    )
+    return any(table.get("name") == name for table in bins)
+
+
+def _no_bin_reason(bins: list[dict[str, object]], gated: list[str]) -> str:
+    """Explain why the declared bins, or the lack of them, give no bin target.
+
+    Returns:
+        str: The reason, without a trailing period.
+    """
+    if not bins:
+        return (
+            "Cargo.toml sets autobins = false and declares no [[bin]] target, "
+            "so src/main.rs is not a bin target"
+        )
+    return (
+        "every [[bin]] target in Cargo.toml has required-features that "
+        f"the default features do not enable ({'; '.join(gated)}), so "
+        "cargo install skips it"
+    )
 
 
 def _detect_cargo(
