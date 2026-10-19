@@ -7,11 +7,14 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from mibare.core.assets import matching_assets
+from mibare.core.ecosystems import ECOSYSTEMS, Detection, Ecosystem
 from mibare.core.errors import GitHubUnavailableError
 from mibare.core.platform import Platform, host_platform
 from mibare.core.repository import Repository, parse_repository
 
 if TYPE_CHECKING:
+    from collections.abc import Sequence
+
     from mibare.core.github import GitHub
     from mibare.core.mise import Mise
 
@@ -287,6 +290,100 @@ def _add_github(
     return None
 
 
+def _run_detectors(
+    repository: Repository, github: GitHub, ecosystems: Sequence[Ecosystem]
+) -> tuple[list[tuple[Ecosystem, Detection]], GitHubUnavailableError | None]:
+    """Run each detector, surviving a GitHub failure in any of them.
+
+    Returns:
+        tuple[list[tuple[Ecosystem, Detection]], GitHubUnavailableError | None]:
+            The detections that completed and the last failure, if any.
+    """
+    outcomes = [(eco, _detect_one(eco, repository, github)) for eco in ecosystems]
+    results = [(eco, o) for eco, o in outcomes if isinstance(o, Detection)]
+    failures = [o for _, o in outcomes if isinstance(o, GitHubUnavailableError)]
+    return results, failures[-1] if failures else None
+
+
+def _detect_one(
+    ecosystem: Ecosystem, repository: Repository, github: GitHub
+) -> Detection | GitHubUnavailableError:
+    """Run one detector, returning a GitHub failure instead of raising it.
+
+    Returns:
+        Detection | GitHubUnavailableError: The detection or the failure.
+    """
+    try:
+        return ecosystem.detect(repository, github)
+    except GitHubUnavailableError as error:
+        return error
+
+
+def _primary_language(
+    repository: Repository, github: GitHub
+) -> tuple[str | None, GitHubUnavailableError | None]:
+    """Look up the primary language, tolerating a GitHub failure.
+
+    Returns:
+        tuple[str | None, GitHubUnavailableError | None]: The language, or
+            ``None`` with the failure.
+    """
+    try:
+        return github.primary_language(repository), None
+    except GitHubUnavailableError as error:
+        return None, error
+
+
+def _offer(
+    found: dict[str, list[str]],
+    hits: list[tuple[Ecosystem, Detection]],
+    language: str | None,
+) -> None:
+    """Add the detected backends: primary language's first, then alphabetical.
+
+    ``found`` keeps insertion order and ranking is a stable sort by tier, so
+    this order is the tie-break among language packages.
+    """
+    hits.sort(key=lambda hit: (not hit[0].favoured_by(language), hit[1].backend_string))
+    for ecosystem, detection in hits:
+        reasons = found.setdefault(detection.backend_string, [])
+        reasons.append(detection.reason)
+        if ecosystem.favoured_by(language):
+            reasons.append(f"{language} is the repository's primary language")
+
+
+def _add_language_packages(
+    found: dict[str, list[str]],
+    repository: Repository,
+    github: GitHub | None,
+    ecosystems: Sequence[Ecosystem],
+) -> tuple[tuple[Exclusion, ...], GitHubUnavailableError | None]:
+    """Add the language-package backends whose ecosystem finds an entrypoint.
+
+    The primary language's backend is added first and the others follow
+    alphabetically by backend string, so ranking (a stable sort by tier) keeps
+    that order.
+
+    Returns:
+        tuple[tuple[Exclusion, ...], GitHubUnavailableError | None]: The
+            ecosystems that found nothing, with why, and the failure when
+            GitHub was unreachable.
+    """
+    if github is None:
+        return (), None
+    results, failure = _run_detectors(repository, github, ecosystems)
+    hits = [(eco, d) for eco, d in results if d.found]
+    language = None
+    if len(hits) > 1:
+        language, language_failure = _primary_language(repository, github)
+        failure = failure or language_failure
+    _offer(found, hits, language)
+    misses = tuple(
+        Exclusion(d.backend_string, d.reason) for _, d in results if not d.found
+    )
+    return misses, failure
+
+
 def _rank(
     found: dict[str, list[str]], target: Platform
 ) -> tuple[tuple[Candidate, ...], tuple[Exclusion, ...]]:
@@ -309,11 +406,58 @@ def _rank(
     return tuple(candidates), tuple(exclusions)
 
 
+def _skipped_notes(
+    github_failure: GitHubUnavailableError | None,
+    language_failure: GitHubUnavailableError | None,
+) -> tuple[str, ...]:
+    """Name the steps GitHub failures made us skip.
+
+    Returns:
+        tuple[str, ...]: One note per failed step.
+    """
+    steps = (("github:", github_failure), ("language-package", language_failure))
+    return tuple(f"Skipped the {name} step: {why}" for name, why in steps if why)
+
+
+def _gather(
+    repository: Repository,
+    mise: Mise,
+    github: GitHub | None,
+    target: Platform,
+    ecosystems: Sequence[Ecosystem],
+) -> tuple[
+    tuple[Candidate, ...],
+    tuple[Exclusion, ...],
+    tuple[str, ...],
+    GitHubUnavailableError | None,
+]:
+    """Run the ladder's steps and rank what they found.
+
+    Returns:
+        tuple: The candidates, the exclusions, a note for each skipped step
+            and the GitHub failure that caused any skip.
+    """
+    found = _found_backends(repository, mise)
+    github_failure = _add_github(found, repository, mise, github, target)
+    misses, language_failure = _add_language_packages(
+        found, repository, github, ecosystems
+    )
+    candidates, exclusions = _rank(found, target)
+    skipped = _skipped_notes(github_failure, language_failure)
+    return (
+        candidates,
+        (*exclusions, *misses),
+        skipped,
+        github_failure or language_failure,
+    )
+
+
 def resolve(
     repository: str,
     mise: Mise,
     platform: Platform | None = None,
     github: GitHub | None = None,
+    ecosystems: Sequence[Ecosystem] = ECOSYSTEMS,
 ) -> Resolution:
     """Resolve ``repository`` to the mise backends that can install it.
 
@@ -323,6 +467,8 @@ def resolve(
         platform: The target platform; defaults to the host.
         github: The GitHub adapter. Without one the steps that need the GitHub
             API are left out, so ``resolve()`` stays offline.
+        ecosystems: The language-package ecosystems to detect; defaults to
+            the registered ones.
 
     Returns:
         Resolution: The ranked candidates; the first is the recommendation.
@@ -337,11 +483,10 @@ def resolve(
     host = host_platform()
     target = platform or host
     mise_version = mise.version()
-    found = _found_backends(parsed, mise)
-    failure = _add_github(found, parsed, mise, github, target)
-    candidates, exclusions = _rank(found, target)
-    if failure is not None and not candidates:
+    candidates, exclusions, skipped, failure = _gather(
+        parsed, mise, github, target, ecosystems
+    )
+    if not candidates and failure is not None:
         raise failure
-    skipped = (f"Skipped the github: step: {failure}",) if failure else ()
     notes = (*_platform_notes(target, host), *skipped)
     return Resolution(parsed, mise_version, candidates, exclusions, target, notes)

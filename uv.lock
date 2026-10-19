@@ -1768,6 +1768,7 @@ wheels = [
 name = "mibare"
 source = { editable = "." }
 dependencies = [
+    { name = "tomli", marker = "python_full_version < '3.11'" },
     { name = "typer" },
 ]
 
@@ -1799,6 +1800,7 @@ dev = [
     { name = "slotscheck" },
     { name = "sphinx-lint" },
     { name = "taplo" },
+    { name = "tomli" },
     { name = "tox" },
     { name = "tox-uv" },
     { name = "ty" },
@@ -1836,6 +1838,7 @@ style = [
     { name = "slotscheck" },
     { name = "sphinx-lint" },
     { name = "taplo" },
+    { name = "tomli" },
     { name = "ty" },
     { name = "typos" },
     { name = "zuban" },
@@ -1857,7 +1860,10 @@ tool = [
 ]
 
 [package.metadata]
-requires-dist = [{ name = "typer", specifier = ">=0.20.0" }]
+requires-dist = [
+    { name = "tomli", marker = "python_full_version < '3.11'", specifier = ">=2.0.1" },
+    { name = "typer", specifier = ">=0.20.0" },
+]
 
 [package.metadata.requires-dev]
 deps = [
@@ -1887,6 +1893,7 @@ dev = [
     { name = "slotscheck", specifier = "==0.21.0" },
     { name = "sphinx-lint", specifier = "==1.0.2" },
     { name = "taplo", specifier = "==0.9.3" },
+    { name = "tomli", specifier = ">=2.0.1" },
     { name = "tox", specifier = "==4.64.10" },
     { name = "tox-uv", specifier = "==1.36.1" },
     { name = "ty", specifier = "==0.0.66" },
@@ -1920,6 +1927,7 @@ style = [
     { name = "slotscheck", specifier = "==0.21.0" },
     { name = "sphinx-lint", specifier = "==1.0.2" },
     { name = "taplo", specifier = "==0.9.3" },
+    { name = "tomli", specifier = ">=2.0.1" },
     { name = "ty", specifier = "==0.0.66" },
     { name = "typos", specifier = "==1.49.0" },
     { name = "zuban", specifier = "==0.9.1" },
