@@ -5,18 +5,12 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass, field
 from functools import cache
-from pathlib import Path
 
 from mibare.__metadata__ import PROJECT_NAME
-from mibare.core.dirs import ROOT_FOLDER_PATH
 
 # Dashes are normalized to underscores so the prefix is a valid shell variable
 # name (e.g. ``my-project`` -> ``MY_PROJECT_``).
 _ENV_PREFIX = f"{PROJECT_NAME.upper().replace('-', '_')}_"
-
-# Values (case-insensitive) accepted as boolean true, matching pydantic's
-# bool coercion so both Settings variants behave identically.
-_TRUTHY = {"1", "true", "yes", "on", "y", "t"}
 
 
 def _env(name: str, default: str) -> str:
@@ -42,14 +36,8 @@ class Settings:
     example ``MY_PROJECT_LOG_LEVEL``.
     """
 
-    # Example settings - replace or extend these with your project's own.
-    # ``log_level`` is consumed by ``core/logging_setup.py``; ``debug`` and
-    # ``config_dir`` are illustrative placeholders not yet wired into anything.
-    debug: bool = field(default_factory=lambda: _env("DEBUG", "").lower() in _TRUTHY)
+    # ``log_level`` is consumed by ``core/logging_setup.py``.
     log_level: str = field(default_factory=lambda: _env("LOG_LEVEL", "INFO"))
-    config_dir: Path = field(
-        default_factory=lambda: Path(_env("CONFIG_DIR", str(ROOT_FOLDER_PATH)))
-    )
 
 
 @cache

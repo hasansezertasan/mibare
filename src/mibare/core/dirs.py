@@ -29,11 +29,10 @@ def _root_folder_base(home: Path | None) -> Path:
 
     Falls back to the temp directory when ``home`` is ``None`` purely so
     module-level paths stay valid ``Path`` objects for callers that need *a*
-    location (e.g. the illustrative ``config_dir`` setting). Nothing in the
-    template writes to that fallback automatically -- file logging is skipped
-    entirely when the home directory is unresolvable (see ``HOME_IS_RESOLVABLE``
-    and ``core/logging_setup.py``), because a predictable shared path would let
-    another local user hijack the log file.
+    location. Nothing in the template writes to that fallback automatically --
+    file logging is skipped entirely when the home directory is unresolvable
+    (see ``HOME_IS_RESOLVABLE`` and ``core/logging_setup.py``), because a
+    predictable shared path would let another local user hijack the log file.
 
     Args:
         home: The resolved home directory, or ``None`` if undeterminable.
