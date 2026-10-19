@@ -195,6 +195,66 @@ def test_registry_entries_for_other_repositories_are_ignored(backend: str) -> No
     assert resolution.candidates == ()
 
 
+@pytest.mark.parametrize(
+    "backend",
+    [
+        "cargo:BurntSushi/ripgrep",
+        "cargo:burntsushi/Ripgrep[locked=true]",
+        "pypi:BurntSushi/ripgrep",
+        "cargo:https://github.com/BurntSushi/ripgrep",
+        "pypi:https://github.com/BurntSushi/ripgrep.git",
+    ],
+)
+def test_slash_valued_cargo_and_pypi_registry_entries_are_the_repository(
+    backend: str,
+) -> None:
+    """A ``cargo:``/``pypi:`` value naming ``owner/repo`` is a repository source.
+
+    Given:
+        - A registry entry whose cargo or pypi backend is a GitHub shorthand or URL.
+    When:
+        - ``BurntSushi/ripgrep`` is resolved.
+    Then:
+        - The entry's backend is a candidate.
+    """
+    resolution = resolve("BurntSushi/ripgrep", FakeMise([entry("rg", backend)]))
+
+    assert [c.backend_string for c in resolution.candidates] == [backend]
+
+
+@pytest.mark.parametrize(
+    "backend",
+    [
+        "cargo:BurntSushi/ripgrep@1.0",
+        "pypi:BurntSushi/ripgrep/extra",
+        "cargo:https://example.com/BurntSushi/ripgrep",
+        "cargo:ssh://BurntSushi/ripgrep",
+        "pypi:ripgrep",
+        "cargo:ripgrep",
+    ],
+)
+def test_other_slash_valued_cargo_and_pypi_entries_are_not_the_repository(
+    backend: str,
+) -> None:
+    """Versions, extra segments, other hosts and bare names are not repositories."""
+    resolution = resolve("BurntSushi/ripgrep", FakeMise([entry("rg", backend)]))
+
+    assert resolution.candidates == ()
+
+
+def test_cargo_shorthand_registry_entry_and_detector_candidate_merge() -> None:
+    """The registry's ``cargo:owner/repo`` and the detected one are one candidate."""
+    manifest = '[package]\nname = "r"\n\n[[bin]]\nname = "r"\n'
+    github = FakeGitHub(files={"Cargo.toml": manifest})
+    registry = entry("r", "cargo:O/R")
+
+    resolution = resolve("o/r", FakeMise([registry]), HOST, github=github)
+
+    (candidate,) = resolution.candidates
+    assert candidate.backend_string.lower() == "cargo:o/r"
+    assert any("mise registry" in reason for reason in candidate.reasons)
+
+
 def _backends(resolution: Resolution) -> list[str]:
     """List the backend strings of ``resolution`` in ranked order."""
     return [c.backend_string for c in resolution.candidates]

@@ -36,6 +36,10 @@ _OWNER_REPO_BACKENDS = frozenset({"aqua", "github", "spm", "ubi"})
 #: Prefixes that precede an ``owner/repo`` path, as in ``go:github.com/o/r`` and
 #: ``npm:github:o/r``.
 _REPOSITORY_PREFIXES = ("github.com/", "github:")
+#: Backends whose slash-valued identifier may be a GitHub ``owner/repo`` or URL,
+#: as in ``cargo:owner/repo``; without a slash the value is a package name.
+_SHORTHAND_BACKENDS = frozenset({"cargo", "pypi"})
+_SHORTHAND_PATH = re.compile(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+")
 
 
 #: Positions on mise's documented preference ladder, best first.
@@ -198,6 +202,8 @@ def _repository_of(backend_string: str) -> Repository | None:
     """
     backend, _, tool = backend_string.partition(":")
     tool = tool.split("[", 1)[0]
+    if backend in _SHORTHAND_BACKENDS and "/" in tool:
+        return _parse_or_none(tool)
     if backend in _OWNER_REPO_BACKENDS:
         path = tool
     else:
@@ -208,6 +214,18 @@ def _repository_of(backend_string: str) -> Repository | None:
     owner, _, rest = path.partition("/")
     name = rest.split("/", 1)[0].removesuffix(".git")
     return Repository(owner, name) if owner and name else None
+
+
+def _parse_or_none(text: str) -> Repository | None:
+    """Read ``text`` as a GitHub URL or ``owner/repo``.
+
+    Returns:
+        Repository | None: The repository, or ``None`` when ``text`` names none.
+    """
+    try:
+        return parse_repository(text)
+    except MibareError:
+        return None
 
 
 def _points_at(repository: Repository, backend_string: str) -> bool:
@@ -234,7 +252,8 @@ def _dedupe_key(backend_string: str) -> str:
     backend, colon, tool = backend_string.partition(":")
     path, bracket, options = tool.partition("[")
     prefix = ""
-    if backend not in _OWNER_REPO_BACKENDS:
+    shorthand = backend in _SHORTHAND_BACKENDS and _SHORTHAND_PATH.fullmatch(path)
+    if not shorthand and backend not in _OWNER_REPO_BACKENDS:
         matched = next((p for p in _REPOSITORY_PREFIXES if path.startswith(p)), None)
         if matched is None:
             return backend_string
