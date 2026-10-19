@@ -527,6 +527,79 @@ def test_an_aqua_probe_alone_keeps_the_explicit_backend_command() -> None:
     assert not any("short name" in r for r in resolution.candidates[0].reasons)
 
 
+@pytest.mark.parametrize(
+    ("target", "expected"),
+    [
+        (Platform("windows", "x64"), 'mise use "github:o/r[exe=rg]"'),
+        (Platform("linux", "x64"), "mise use 'github:o/r[exe=rg]'"),
+        (Platform("macos", "arm64"), "mise use 'github:o/r[exe=rg]'"),
+    ],
+)
+def test_the_command_is_quoted_for_the_target_platforms_shell(
+    target: Platform, expected: str
+) -> None:
+    """A Windows target gets cmd.exe double quotes, any other target POSIX quotes.
+
+    Given:
+        - A registry backend whose backend string needs quoting.
+    When:
+        - It is resolved for a Windows target and for POSIX targets.
+    Then:
+        - The command is pasted where the tool is installed, so the quoting
+          follows the target, not the host running mibare.
+    """
+    registry = entry("rg", "aqua:o/r", "github:o/r[exe=rg]")
+
+    resolution = resolve("o/r", FakeMise([registry]), target)
+
+    candidate = next(c for c in resolution.candidates if "[" in c.backend_string)
+    assert candidate.mise_use == expected
+
+
+def test_a_windows_command_leaves_plain_arguments_unquoted() -> None:
+    """Nothing special in the argument means no quotes, as in a POSIX shell."""
+    resolution = resolve(
+        "o/r",
+        FakeMise([entry("rg", "aqua:o/r", "ubi:o/r")]),
+        Platform("windows", "x64"),
+    )
+
+    assert [c.mise_use for c in resolution.candidates] == [
+        "mise use rg",
+        "mise use ubi:o/r",
+    ]
+
+
+def test_a_windows_command_escapes_embedded_double_quotes() -> None:
+    """A double quote inside the argument is backslash-escaped, as cmd.exe parses it."""
+    backend = 'github:o/r[a="b"]'
+    registry = entry("rg", "aqua:o/r", backend)
+
+    resolution = resolve("o/r", FakeMise([registry]), Platform("windows", "arm64"))
+
+    candidate = next(c for c in resolution.candidates if c.backend_string == backend)
+    assert candidate.mise_use == 'mise use "github:o/r[a=\\"b\\"]"'
+
+
+@pytest.mark.parametrize(
+    ("backend", "quoted"),
+    [
+        (r"github:o/r[a\"]", r'"github:o/r[a\\\"]"'),
+        ("github:o/r[x\\", r'"github:o/r[x\\"'),
+    ],
+)
+def test_a_windows_command_doubles_backslashes_before_quotes(
+    backend: str, quoted: str
+) -> None:
+    """Backslashes before a quote, or at the end, are doubled so they stay literal."""
+    registry = entry("rg", "aqua:o/r", backend)
+
+    resolution = resolve("o/r", FakeMise([registry]), Platform("windows", "x64"))
+
+    candidate = next(c for c in resolution.candidates if c.backend_string == backend)
+    assert candidate.mise_use == f"mise use {quoted}"
+
+
 def test_a_resolution_with_no_exclusions_reports_none() -> None:
     """The registry step excludes nothing, so the exclusion list is empty."""
     resolution = resolve("BurntSushi/ripgrep", FakeMise([RIPGREP]))

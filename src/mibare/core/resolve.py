@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 import shlex
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, NamedTuple
@@ -47,6 +48,8 @@ _TIERS = (
 _MIN_TIED = 2  # candidates needed in a tier before a tie-break matters
 _LOWEST_TIER = len(_TIERS) + 1  # plugins and anything unknown
 _LEGACY_BACKENDS = frozenset({"asdf", "vfox", "ubi"})
+#: What ``cmd.exe`` needs no quotes around; anything else is double-quoted.
+_CMD_SAFE = re.compile(r"[\w@+:./\\-]+")
 _SHORT_NAME_REASON = (
     "the command uses the registry short name {!r}, so its options apply"
 )
@@ -68,6 +71,8 @@ class Candidate:
         registry_name: The registry short name to install it by, set only for
             the backend mise itself picks first for that name, so the entry's
             options apply; ``None`` otherwise.
+        windows_target: Whether the target platform is Windows, so the command
+            is quoted for ``cmd.exe`` instead of a POSIX shell.
     """
 
     backend_string: str
@@ -76,15 +81,20 @@ class Candidate:
     legacy: bool = False
     warning: str | None = None
     registry_name: str | None = None
+    windows_target: bool = False
 
     @property
     def mise_use(self) -> str:
         """A ready-to-paste ``mise use`` command for this candidate.
 
         It names the registry short name when :attr:`registry_name` is set and
-        the backend string otherwise.
+        the backend string otherwise. The argument is quoted for the target
+        platform's shell, since the command is pasted where the tool will be
+        installed: double quotes for a Windows target, POSIX quotes otherwise.
         """
-        return f"mise use {shlex.quote(self.registry_name or self.backend_string)}"
+        argument = self.registry_name or self.backend_string
+        quote = _quote_for_cmd if self.windows_target else shlex.quote
+        return f"mise use {quote(argument)}"
 
 
 @dataclass(frozen=True)
@@ -142,7 +152,9 @@ class Resolution:
         the backend mise itself picks first for a registry entry (so the
         entry's options, which ``mise registry --json`` omits, apply), and the
         explicit backend string for every other candidate; ``backend_string``
-        stays the candidate's identity either way.
+        stays the candidate's identity either way. An argument that needs
+        quoting is quoted for the target platform's shell: double quotes for a
+        Windows target, POSIX single quotes otherwise.
 
         Returns:
             dict[str, object]: A structure that ``json.dumps`` accepts.
@@ -243,8 +255,29 @@ def _known(backends: dict[str, list[str]], backend_string: str) -> str:
     return next((b for b in backends if _dedupe_key(b) == key), backend_string)
 
 
+def _quote_for_cmd(argument: str) -> str:
+    """Quote ``argument`` for ``cmd.exe`` when it holds anything but plain characters.
+
+    Embedded double quotes are backslash-escaped, with the backslashes before
+    them (and any trailing ones) doubled, as the Windows argument parser reads
+    them. ``%`` is not escaped: ``cmd.exe`` expands it even inside quotes.
+
+    Returns:
+        str: ``argument`` as is, or wrapped in double quotes.
+    """
+    if _CMD_SAFE.fullmatch(argument):
+        return argument
+    escaped = re.sub(r'(\\*)"', lambda m: f'{m.group(1) * 2}\\"', argument)
+    escaped = re.sub(r"(\\+)$", lambda m: m.group(1) * 2, escaped)
+    return f'"{escaped}"'
+
+
 def _candidate(
-    backend_string: str, reasons: list[str], registry_name: str | None = None
+    backend_string: str,
+    reasons: list[str],
+    registry_name: str | None = None,
+    *,
+    windows_target: bool = False,
 ) -> Candidate:
     """Build a candidate, placing it on the tier ladder and flagging legacy.
 
@@ -258,7 +291,13 @@ def _candidate(
     legacy = backend in _LEGACY_BACKENDS
     warning = _LEGACY_WARNING.format(backend) if legacy else None
     return Candidate(
-        backend_string, tuple(reasons), tier, legacy, warning, registry_name
+        backend_string,
+        tuple(reasons),
+        tier,
+        legacy,
+        warning,
+        registry_name,
+        windows_target,
     )
 
 
@@ -596,7 +635,9 @@ def _rank(
         name = short_names.get(backend)
         if name is not None:
             reasons.append(_SHORT_NAME_REASON.format(name))
-        candidate = _candidate(backend, reasons, name)
+        candidate = _candidate(
+            backend, reasons, name, windows_target=target.os == "windows"
+        )
         why_not = _unusable_reason(candidate, target)
         if why_not is None:
             candidates.append(candidate)
