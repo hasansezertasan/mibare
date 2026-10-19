@@ -16,6 +16,8 @@ from pathlib import Path
 
 import pytest
 
+from mibare.core.platform import Platform
+
 # ``--doctest-glob=README.md`` (pyproject ``addopts``) matches on the *basename*,
 # so without this every ``tests/**/README.md`` -- fixture notes, a subdirectory
 # guide -- would also be collected as a doctest the moment it contained a ``>>>``
@@ -75,3 +77,16 @@ def pytest_collection_modifyitems(
         component = rel.parts[0] if len(rel.parts) > 1 else "core"
         if component in _COMPONENT_DIRS:
             item.add_marker(component)
+
+
+@pytest.fixture(autouse=True)
+def _pin_host_platform(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Pin the host platform so resolution never depends on the runner's OS.
+
+    ``resolve()`` defaults its target to the real host, and some backends (asdf)
+    are excluded on a Windows target, so an unpinned host changes the candidates.
+    Tests that need another host patch the same name later and win.
+    """
+    monkeypatch.setattr(
+        "mibare.core.resolve.host_platform", lambda: Platform("linux", "x64")
+    )
