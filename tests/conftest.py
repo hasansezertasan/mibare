@@ -11,11 +11,10 @@ Also keeps the Markdown doctest surface to the single root ``README.md``: see
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
-from typing import TYPE_CHECKING
 
-if TYPE_CHECKING:
-    import pytest
+import pytest
 
 # ``--doctest-glob=README.md`` (pyproject ``addopts``) matches on the *basename*,
 # so without this every ``tests/**/README.md`` -- fixture notes, a subdirectory
@@ -39,10 +38,26 @@ _COMPONENT_DIRS: frozenset[str] = frozenset({
 # fmt: on
 
 
+def _real_mise_requested(config: pytest.Config) -> bool:
+    """Say whether the ``-m`` expression names ``real_mise`` without negating it."""
+    expression = str(config.getoption("markexpr") or "")
+    return re.search(r"(?<!not )\breal_mise\b", expression) is not None
+
+
 def pytest_collection_modifyitems(
     config: pytest.Config, items: list[pytest.Item]
 ) -> None:
-    """Mark each collected test with its top-level tests/<dir> component name."""
+    """Skip opt-in real-mise tests, then mark each test with its component name.
+
+    The real-mise tests are skipped here rather than deselected through
+    ``addopts``, because any ``-m`` given on the command line (CI passes one)
+    replaces an ``addopts`` ``-m`` and would silently run them.
+    """
+    if not _real_mise_requested(config):
+        skip = pytest.mark.skip(reason="opt-in: run with `pytest -m real_mise`")
+        for item in items:
+            if item.get_closest_marker("real_mise"):
+                item.add_marker(skip)
     tests_root = Path(str(config.rootpath)) / "tests"
     for item in items:
         try:

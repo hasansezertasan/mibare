@@ -21,7 +21,7 @@ body:
     id: version
     attributes:
       label: Version
-      description: Output of `mibare version` or the installed package version.
+      description: The installed package version, for example from `pip show mibare`.
       placeholder: '0.1.0'
     validations:
       required: true

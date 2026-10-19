@@ -173,9 +173,10 @@ generated project.
 
 A small suite under `tests/real_mise/` runs the actual `mise` binary and the
 network against the mise adapter, to notice when mise's output changes. It is
-marked `real_mise` and deselected by default (`addopts` carries
-`-m 'not real_mise'`), so ordinary runs stay fast and offline. Enable it with
-`mise` on `PATH` (2026.10.13 or newer):
+marked `real_mise` and skipped unless `-m real_mise` is given (a conftest hook
+does this, so a `-m` expression from CI cannot switch the suite on by accident),
+so ordinary runs stay fast and offline. Enable it with `mise` on `PATH`
+(2026.10.13 or newer):
 
 ```bash
 uv run --locked pytest -m real_mise
