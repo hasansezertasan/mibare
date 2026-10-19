@@ -148,6 +148,7 @@ def test_repository_not_in_the_registry_has_no_candidates() -> None:
         "ubi:BurntSushi/ripgrep",
         "go:github.com/BurntSushi/ripgrep/cmd/rg",
         "packslip:github.com/BurntSushi/ripgrep",
+        "spm:BurntSushi/ripgrep",
         "github:BurntSushi/ripgrep[exe=rg]",
     ],
 )

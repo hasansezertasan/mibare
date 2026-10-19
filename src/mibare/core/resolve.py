@@ -30,7 +30,7 @@ SCHEMA_VERSION = 1
 
 #: Backends whose tool identifier is the repository's ``owner/repo``. asdf and
 #: vfox are left out: their value names a plugin repository, not the tool's own.
-_OWNER_REPO_BACKENDS = frozenset({"aqua", "github", "ubi"})
+_OWNER_REPO_BACKENDS = frozenset({"aqua", "github", "spm", "ubi"})
 #: Prefixes that precede an ``owner/repo`` path, as in ``go:github.com/o/r`` and
 #: ``npm:github:o/r``.
 _REPOSITORY_PREFIXES = ("github.com/", "github:")
