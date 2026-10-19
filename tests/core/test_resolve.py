@@ -365,7 +365,7 @@ def test_the_target_defaults_to_the_host(monkeypatch: pytest.MonkeyPatch) -> Non
 
     assert resolution.platform == windows
     assert _backends(resolution) == ["aqua:o/r"]
-    assert not any("github:" in note for note in resolution.notes)
+    assert resolution.notes == ()
 
 
 def test_a_target_that_differs_from_the_host_is_noted(
@@ -700,12 +700,19 @@ def test_github_step_is_skipped_when_the_registry_already_lists_it() -> None:
     assert github.calls == 0
 
 
-def test_without_a_github_adapter_the_step_is_left_out() -> None:
-    """``resolve()`` stays offline when no GitHub adapter is passed."""
+def test_without_a_github_adapter_the_step_is_left_out(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """``resolve()`` stays offline when no GitHub adapter is passed.
+
+    The step is left out silently: no candidate, no skipped-step note.
+    """
+    monkeypatch.setattr("mibare.core.resolve.host_platform", lambda: LINUX_X64)
+
     resolution = resolve(TOOL, FakeMise(recipes=[GITHUB_TOOL]), LINUX_X64)
 
     assert resolution.candidates == ()
-    assert not any("github:" in note for note in resolution.notes)
+    assert resolution.notes == ()
 
 
 def test_network_failure_keeps_offline_results_and_names_skipped_steps() -> None:
