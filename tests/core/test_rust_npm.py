@@ -77,14 +77,23 @@ def test_autobins_false_still_honors_a_declared_bin_table() -> None:
     assert _backends(resolution) == ["cargo:owner/tool"]
 
 
-def test_a_manifest_without_a_package_table_does_not_disable_autobins() -> None:
-    """Only ``[package] autobins = false`` turns discovery off."""
+def test_a_virtual_workspace_gives_no_cargo_candidate() -> None:
+    """A root manifest with no ``[package]`` owns no ``src/main.rs`` bin."""
     resolution = _resolve({
         "Cargo.toml": "[workspace]\nmembers = []\n",
         "src/main.rs": "fn main() {}",
     })
 
-    assert _backends(resolution) == ["cargo:owner/tool"]
+    assert resolution.candidates == ()
+    assert "virtual workspace" in _excluded(resolution, "cargo:owner/tool")
+
+
+def test_a_bin_table_without_a_package_table_is_not_a_candidate() -> None:
+    """A ``[[bin]]`` is only valid in a manifest that has a ``[package]``."""
+    resolution = _resolve({"Cargo.toml": '[[bin]]\nname = "tool"\n'})
+
+    assert resolution.candidates == ()
+    assert "virtual workspace" in _excluded(resolution, "cargo:owner/tool")
 
 
 def test_library_only_crate_gives_no_cargo_candidate() -> None:

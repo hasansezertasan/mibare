@@ -120,15 +120,13 @@ def _autobins_disabled(manifest: dict[str, object]) -> bool:
     """Say whether ``Cargo.toml`` turns off bin-target auto-discovery.
 
     Args:
-        manifest: The parsed ``Cargo.toml``.
+        manifest: The parsed ``Cargo.toml``, which has a ``[package]`` table.
 
     Returns:
         bool: ``True`` when ``[package] autobins`` is ``false``.
     """
-    package = manifest.get("package")
-    if not isinstance(package, dict):
-        return False
-    return cast("dict[str, object]", package).get("autobins") is False
+    package = cast("dict[str, object]", manifest["package"])
+    return package.get("autobins") is False
 
 
 def _strings(value: object) -> list[str]:
@@ -292,6 +290,9 @@ def _detect_cargo(
         manifest = tomllib.loads(text)
     except tomllib.TOMLDecodeError:
         reason = "Cargo.toml in the repository root is not valid TOML"
+        return Detection(backend_string, reason, found=False)
+    if not isinstance(manifest.get("package"), dict):
+        reason = "the root Cargo.toml is a virtual workspace with no [package]"
         return Detection(backend_string, reason, found=False)
     return _cargo_bin_detection(manifest, repository, github)
 
