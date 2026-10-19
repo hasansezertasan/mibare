@@ -2,7 +2,8 @@
 
 ``mise`` always runs in an isolated environment so the user's settings, such as
 ``MISE_DISABLE_BACKENDS``, never change the answer: a clean environment, a
-temporary ``HOME``, ``MISE_NO_CONFIG=1`` and ``GITHUB_TOKEN`` passed through.
+temporary ``HOME``, ``MISE_NO_CONFIG=1``, and ``GITHUB_TOKEN`` plus the proxy and
+certificate variables passed through so mise can still reach the network.
 """
 
 from __future__ import annotations
@@ -21,6 +22,23 @@ from mibare.core.errors import MiseError, MiseNotFoundError, MiseTooOldError
 
 if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence
+
+#: User variables that reach mise: the token and what the network needs, never
+#: mise's own settings. mise only honours proxies set in the environment that
+#: starts it (https://mise.jdx.dev/faq.html#how-do-i-use-mise-with-http-proxies).
+_PASSTHROUGH = (
+    "GITHUB_TOKEN",
+    "HTTP_PROXY",
+    "HTTPS_PROXY",
+    "ALL_PROXY",
+    "NO_PROXY",
+    "http_proxy",
+    "https_proxy",
+    "all_proxy",
+    "no_proxy",
+    "SSL_CERT_FILE",
+    "SSL_CERT_DIR",
+)
 
 __all__ = ["MIN_MISE_VERSION", "Mise", "RegistryEntry", "SubprocessMise", "run_process"]
 
@@ -263,8 +281,7 @@ class SubprocessMise:
         """
         with tempfile.TemporaryDirectory(prefix="mibare-") as home:
             env = {"HOME": home, "MISE_NO_CONFIG": "1"}
-            if "GITHUB_TOKEN" in os.environ:
-                env["GITHUB_TOKEN"] = os.environ["GITHUB_TOKEN"]
+            env.update({n: os.environ[n] for n in _PASSTHROUGH if n in os.environ})
             command = ("mise", *arguments)
             try:
                 done = self._run(command, env, Path(home))

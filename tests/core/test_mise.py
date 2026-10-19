@@ -176,6 +176,33 @@ def test_no_token_is_passed_when_the_user_has_none(
     assert "GITHUB_TOKEN" not in runner.calls[0][1]
 
 
+def test_connectivity_variables_reach_mise(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Proxy and certificate variables pass through; mise settings still do not.
+
+    Given:
+        - A user environment with proxy and certificate variables and a
+          ``MISE_DISABLE_BACKENDS`` setting.
+    When:
+        - The registry is requested.
+    Then:
+        - Mise's environment carries the proxy and certificate variables, so its
+          probes can reach the network, and not the mise setting.
+    """
+    monkeypatch.setenv("HTTPS_PROXY", "http://proxy.example:3128")
+    monkeypatch.setenv("no_proxy", "localhost")
+    monkeypatch.setenv("SSL_CERT_FILE", "/etc/ssl/corp.pem")
+    monkeypatch.setenv("MISE_DISABLE_BACKENDS", "aqua")
+    runner = FakeRunner()
+
+    _ = SubprocessMise(run=runner).registry()
+
+    env = runner.calls[0][1]
+    assert env["HTTPS_PROXY"] == "http://proxy.example:3128"
+    assert env["no_proxy"] == "localhost"
+    assert env["SSL_CERT_FILE"] == "/etc/ssl/corp.pem"
+    assert "MISE_DISABLE_BACKENDS" not in env
+
+
 def test_missing_mise_is_reported_with_an_install_hint() -> None:
     """A missing binary is an error that says how to install mise.
 
