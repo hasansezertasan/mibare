@@ -11,8 +11,9 @@ __all__ = ["Repository", "parse_repository"]
 
 _SEGMENT = r"[A-Za-z0-9_.-]+"
 _SHORTHAND = re.compile(rf"({_SEGMENT})/({_SEGMENT})")
+_URL_TAIL = r"(?:/[^?#]*)?(?:\?[^#]*)?(?:#.*)?"  # extra path, query, fragment
 _URL = re.compile(
-    rf"(?:https?://)?(?:www\.)?github\.com/({_SEGMENT})/({_SEGMENT})(?:/.*)?",
+    rf"(?:https?://)?(?:www\.)?github\.com/({_SEGMENT})/({_SEGMENT}){_URL_TAIL}",
     re.IGNORECASE,
 )
 
@@ -43,7 +44,8 @@ def parse_repository(text: str) -> Repository:
     """Parse a GitHub URL or ``owner/repo`` shorthand.
 
     Tolerates surrounding whitespace, trailing slashes, a ``.git`` suffix, a
-    ``www.`` prefix and a missing scheme.
+    ``www.`` prefix, a missing scheme, extra path segments and a query or
+    fragment (both ignored).
 
     Args:
         text: The user's input.

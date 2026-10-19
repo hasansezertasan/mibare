@@ -14,6 +14,11 @@ from mibare.core.repository import Repository, parse_repository
         "BurntSushi/ripgrep",
         "https://github.com/BurntSushi/ripgrep/",
         "github.com/BurntSushi/ripgrep.git",
+        "https://github.com/BurntSushi/ripgrep?tab=readme-ov-file",
+        "https://github.com/BurntSushi/ripgrep/?tab=readme-ov-file",
+        "https://github.com/BurntSushi/ripgrep#readme",
+        "https://www.github.com/BurntSushi/ripgrep.git?a=b#readme",
+        "https://github.com/BurntSushi/ripgrep/tree/master/crates?x=1#y",
     ],
 )
 def test_shorthand_and_urls_name_the_same_repository(text: str) -> None:
