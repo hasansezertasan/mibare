@@ -169,6 +169,18 @@ before it starts work, which installs this same toolchain and syncs dependencies
 in its ephemeral environment. The first sync creates `uv.lock` for a newly
 generated project.
 
+### Real-mise tests
+
+A small suite under `tests/real_mise/` runs the actual `mise` binary and the
+network against the mise adapter, to notice when mise's output changes. It is
+marked `real_mise` and deselected by default (`addopts` carries
+`-m 'not real_mise'`), so ordinary runs stay fast and offline. Enable it with
+`mise` on `PATH` (2026.10.13 or newer):
+
+```bash
+uv run --locked pytest -m real_mise
+```
+
 ### Debugging
 
 Debug in VS Code using the launch configurations shipped in `.vscode/launch.json`:

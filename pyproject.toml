@@ -206,13 +206,14 @@ name = "cz_conventional_commits"
 
 [tool.pytest.ini_options]
 # addopts = "-rXs --strict-config --strict-markers"
-addopts = "-v --tb=short --doctest-glob=README.md"
+addopts = "-v --tb=short --doctest-glob=README.md --strict-markers -m 'not real_mise'"
 # One marker per component, auto-applied by tests/conftest.py from each test's
 # top-level tests/<dir>/. Enables `pytest -m web` locally and per-component CI
 # jobs (issue #160, https://hasansezertasan.github.io/copier-pyproject/context/ci-topology/#per-component-markers-path-filtered-jobs-and-one-coverage-gate-per-component); `integration` (https://hasansezertasan.github.io/copier-pyproject/context/testing-strategy/#real-broker-integration-tests-testcontainers-locally-per-broker-ci-mechanism) is one axis of the scheme.
 markers = [
   "core: core/shared component tests",
   "cli: CLI component tests",
+  "real_mise: runs the real mise binary and the network; deselected by default, enable with -m real_mise",
 ]
 filterwarnings = [
   "error",
