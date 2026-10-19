@@ -125,6 +125,82 @@ def _autobins_disabled(manifest: dict[str, object]) -> bool:
     return cast("dict[str, object]", package).get("autobins") is False
 
 
+def _strings(value: object) -> list[str]:
+    """Pick the string items of a TOML array.
+
+    Returns:
+        list[str]: The strings, or nothing for any other value.
+    """
+    if not isinstance(value, list):
+        return []
+    return [item for item in cast("list[object]", value) if isinstance(item, str)]
+
+
+def _declared_bins(manifest: dict[str, object]) -> list[dict[str, object]]:
+    """Pick the ``[[bin]]`` tables of ``Cargo.toml``.
+
+    Returns:
+        list[dict[str, object]]: The tables; empty when none are declared.
+    """
+    bins = manifest.get("bin")
+    if not isinstance(bins, list):
+        return []
+    return [
+        cast("dict[str, object]", table)
+        for table in cast("list[object]", bins)
+        if isinstance(table, dict)
+    ]
+
+
+def _default_features(manifest: dict[str, object]) -> set[str]:
+    """Compute the features ``cargo install`` enables by default.
+
+    Starts from ``[features].default`` and follows feature-to-feature
+    references transitively. A ``pkg/feat`` entry enables the optional
+    dependency ``pkg`` (so the implicit feature of that name); the weak
+    ``pkg?/feat`` and ``dep:pkg`` forms do not.
+
+    Returns:
+        set[str]: The enabled feature names.
+    """
+    table = manifest.get("features")
+    features = cast("dict[str, object]", table) if isinstance(table, dict) else {}
+    enabled: set[str] = set()
+    pending = _strings(features.get("default"))
+    while pending:
+        item = pending.pop()
+        if item.startswith("dep:") or "?/" in item:
+            continue
+        name = item.partition("/")[0]
+        if name not in enabled:
+            enabled.add(name)
+            pending.extend(_strings(features.get(name)))
+    return enabled
+
+
+def _gated_bins(
+    manifest: dict[str, object], bins: list[dict[str, object]]
+) -> list[str]:
+    """Describe the bins whose required features the defaults leave off.
+
+    Returns:
+        list[str]: One ``name needs feature, ...`` line per skipped bin.
+    """
+    enabled = _default_features(manifest)
+    gated: list[str] = []
+    for table in bins:
+        missing = [
+            feature
+            for feature in _strings(table.get("required-features"))
+            if feature not in enabled
+        ]
+        if missing:
+            name = table.get("name")
+            label = name if isinstance(name, str) else "unnamed"
+            gated.append(f"{label} requires {', '.join(missing)}")
+    return gated
+
+
 def _cargo_bin_detection(
     manifest: dict[str, object], repository: Repository, github: GitHub
 ) -> Detection:
@@ -139,9 +215,17 @@ def _cargo_bin_detection(
         Detection: ``found`` when the crate has a bin target.
     """
     backend_string = f"cargo:{repository.shorthand}"
-    bins = manifest.get("bin")
-    if isinstance(bins, list) and bins:
-        return Detection(backend_string, "Cargo.toml declares a [[bin]] target")
+    bins = _declared_bins(manifest)
+    if bins:
+        gated = _gated_bins(manifest, bins)
+        if len(gated) < len(bins):
+            return Detection(backend_string, "Cargo.toml declares a [[bin]] target")
+        reason = (
+            "every [[bin]] target in Cargo.toml has required-features that "
+            f"the default features do not enable ({'; '.join(gated)}), so "
+            "cargo install skips it"
+        )
+        return Detection(backend_string, reason, found=False)
     if _autobins_disabled(manifest):
         reason = (
             "Cargo.toml sets autobins = false and declares no [[bin]] target, "
