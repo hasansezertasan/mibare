@@ -10,6 +10,7 @@ from mibare.core.errors import InvalidRepositoryError
 __all__ = ["Repository", "parse_repository"]
 
 _SEGMENT = r"[A-Za-z0-9_.-]+"
+_DOT_SEGMENTS = frozenset({".", ".."})
 _SHORTHAND = re.compile(rf"({_SEGMENT})/({_SEGMENT})")
 _URL_TAIL = r"(?:/[^?#]*)?(?:\?[^#]*)?(?:#.*)?"  # extra path, query, fragment
 _URL = re.compile(
@@ -65,7 +66,7 @@ def parse_repository(text: str) -> Repository:
         raise InvalidRepositoryError(message)
     owner, name = match.groups()
     name = name.removesuffix(".git")
-    if not name:
+    if not name or {owner, name} & _DOT_SEGMENTS:
         message = f"Not a GitHub repository: {text!r}."
         raise InvalidRepositoryError(message)
     return Repository(owner, name)

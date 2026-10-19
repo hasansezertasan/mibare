@@ -26,7 +26,21 @@ def test_shorthand_and_urls_name_the_same_repository(text: str) -> None:
     assert parse_repository(text) == Repository("BurntSushi", "ripgrep")
 
 
-@pytest.mark.parametrize("text", ["ripgrep", "https://example.com/a/b", "owner/.git"])
+@pytest.mark.parametrize(
+    "text",
+    [
+        "ripgrep",
+        "https://example.com/a/b",
+        "owner/.git",
+        "./repo",
+        "../repo",
+        "owner/.",
+        "owner/..",
+        "owner/..git",
+        "https://github.com/../repo",
+        "https://github.com/owner/..",
+    ],
+)
 def test_text_that_names_no_repository_is_rejected(text: str) -> None:
     """Input that is not a GitHub repository, or has an empty name, raises."""
     with pytest.raises(InvalidRepositoryError, match="Not a GitHub repository"):
