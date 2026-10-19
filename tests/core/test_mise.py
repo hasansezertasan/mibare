@@ -12,6 +12,7 @@ import pytest
 
 from mibare.core.errors import MiseError, MiseNotFoundError, MiseTooOldError
 from mibare.core.mise import (
+    _PASSTHROUGH as PASSTHROUGH,
     MIN_MISE_VERSION,
     RegistryEntry,
     SubprocessMise,
@@ -20,6 +21,18 @@ from mibare.core.mise import (
 
 if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence
+
+
+@pytest.fixture(autouse=True)
+def _clean_passthrough_environment(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Start every test without the variables that reach mise.
+
+    A runner that already exports ``HTTPS_PROXY`` or ``SSL_CERT_FILE`` would
+    otherwise change the environment the tests expect mise to receive.
+    """
+    for name in PASSTHROUGH:
+        monkeypatch.delenv(name, raising=False)
+
 
 REGISTRY_JSON = json.dumps([
     {
