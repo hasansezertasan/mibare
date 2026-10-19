@@ -146,8 +146,6 @@ def test_repository_not_in_the_registry_has_no_candidates() -> None:
         "aqua:BurntSushi/ripgrep",
         "github:BurntSushi/ripgrep",
         "ubi:BurntSushi/ripgrep",
-        "asdf:BurntSushi/ripgrep",
-        "vfox:BurntSushi/ripgrep",
         "go:github.com/BurntSushi/ripgrep/cmd/rg",
         "packslip:github.com/BurntSushi/ripgrep",
         "github:BurntSushi/ripgrep[exe=rg]",
@@ -812,3 +810,57 @@ def test_a_repository_without_a_release_is_explained() -> None:
     resolution = resolve(TOOL, mise, LINUX_X64, github=FakeGitHub())
 
     assert "release" in _excluded(resolution)[GITHUB_TOOL]
+
+
+def test_every_registry_entry_for_the_repository_contributes_its_backends() -> None:
+    """A repository listed under several registry tools keeps all their backends.
+
+    Given:
+        - Two registry tools that both list ``o/r`` and add different backends.
+    When:
+        - ``o/r`` is resolved.
+    Then:
+        - The candidates are the union of both entries' backends, each once,
+          and a shared backend carries a reason from each tool.
+    """
+    registry = [
+        entry("tool-a", "aqua:o/r", "ubi:o/r"),
+        entry("tool-b", "github:o/r", "aqua:o/r"),
+    ]
+
+    resolution = resolve("o/r", FakeMise(registry))
+
+    assert sorted(_backends(resolution)) == ["aqua:o/r", "github:o/r", "ubi:o/r"]
+    shared = next(c for c in resolution.candidates if c.backend_string == "aqua:o/r")
+    assert [r for r in shared.reasons if "'tool-" in r] == [
+        "listed in the mise registry as 'tool-a'",
+        "listed in the mise registry as 'tool-b'",
+    ]
+
+
+@pytest.mark.parametrize(
+    "backend", ["asdf:BurntSushi/ripgrep", "vfox:BurntSushi/ripgrep"]
+)
+def test_plugin_repositories_are_not_the_tools_repository(backend: str) -> None:
+    """An asdf or vfox value names a plugin repository, not the tool's own.
+
+    Given:
+        - A registry entry whose only backend is an asdf or vfox plugin
+          repository that happens to be ``BurntSushi/ripgrep``.
+    When:
+        - ``BurntSushi/ripgrep`` is resolved.
+    Then:
+        - The entry is not matched and there are no candidates.
+    """
+    resolution = resolve("BurntSushi/ripgrep", FakeMise([entry("rg", backend)]))
+
+    assert resolution.candidates == ()
+
+
+def test_an_npm_github_backend_identifies_its_repository() -> None:
+    """``npm:github:owner/repo`` installs from the repository it names."""
+    backend = "npm:github:BurntSushi/ripgrep"
+
+    resolution = resolve("BurntSushi/ripgrep", FakeMise([entry("rg", backend)]))
+
+    assert _backends(resolution) == [backend]

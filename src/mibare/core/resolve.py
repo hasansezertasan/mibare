@@ -23,9 +23,12 @@ __all__ = ["SCHEMA_VERSION", "Candidate", "Exclusion", "Resolution", "resolve"]
 #: Version of the shape ``Resolution.to_dict`` returns; bumped on breaking changes.
 SCHEMA_VERSION = 1
 
-#: Backends whose tool identifier is the repository's ``owner/repo``.
-_OWNER_REPO_BACKENDS = frozenset({"aqua", "github", "ubi", "asdf", "vfox"})
-_HOST_PREFIX = "github.com/"
+#: Backends whose tool identifier is the repository's ``owner/repo``. asdf and
+#: vfox are left out: their value names a plugin repository, not the tool's own.
+_OWNER_REPO_BACKENDS = frozenset({"aqua", "github", "ubi"})
+#: Prefixes that precede an ``owner/repo`` path, as in ``go:github.com/o/r`` and
+#: ``npm:github:o/r``.
+_REPOSITORY_PREFIXES = ("github.com/", "github:")
 
 
 #: Positions on mise's documented preference ladder, best first.
@@ -161,10 +164,11 @@ def _repository_of(backend_string: str) -> Repository | None:
     tool = tool.split("[", 1)[0]
     if backend in _OWNER_REPO_BACKENDS:
         path = tool
-    elif tool.startswith(_HOST_PREFIX):
-        path = tool.removeprefix(_HOST_PREFIX)
     else:
-        return None
+        prefix = next((p for p in _REPOSITORY_PREFIXES if tool.startswith(p)), None)
+        if prefix is None:
+            return None
+        path = tool.removeprefix(prefix)
     owner, _, rest = path.partition("/")
     name = rest.split("/", 1)[0].removesuffix(".git")
     return Repository(owner, name) if owner and name else None
@@ -272,8 +276,9 @@ def _found_backends(repository: Repository, mise: Mise) -> _Findings:
         if any(_points_at(repository, backend) for backend in entry.backends):
             reason = f"listed in the mise registry as {entry.tool!r}"
             for backend in entry.backends:
-                found.setdefault(backend, []).append(reason)
-            break
+                reasons = found.setdefault(backend, [])
+                if reason not in reasons:
+                    reasons.append(reason)
     _probe_aqua(repository, mise, findings)
     return findings
 
