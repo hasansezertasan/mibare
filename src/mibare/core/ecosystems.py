@@ -28,6 +28,13 @@ if TYPE_CHECKING:
     from mibare.core.platform import Platform
     from mibare.core.repository import Repository
 
+_SRC_BIN_FILE_DEPTH = 3  # src/bin/<name>.rs
+_SRC_BIN_DIR_DEPTH = 4  # src/bin/<name>/main.rs
+_TRUNCATED_NOTE = (
+    "The Cargo search was limited: GitHub truncated the repository file "
+    "listing, so a src/bin target may have been missed."
+)
+
 __all__ = [
     "CARGO",
     "ECOSYSTEMS",
@@ -205,6 +212,48 @@ def _gated_bins(
     return gated
 
 
+def _src_bin_names(
+    repository: Repository, github: GitHub, declared: set[str]
+) -> tuple[list[str], bool]:
+    """Find the bins Cargo auto-discovers under ``src/bin``.
+
+    Cargo builds ``src/bin/<name>.rs`` and ``src/bin/<name>/main.rs`` as bins,
+    except where a declared ``[[bin]]`` of the same name takes their place. The
+    repository listing is the one the Go step uses, and the GitHub adapter
+    keeps it, so reading it here costs no second request.
+
+    Args:
+        repository: The repository being resolved.
+        github: The GitHub adapter, for the file listing.
+        declared: The names of the declared ``[[bin]]`` tables.
+
+    Returns:
+        tuple[list[str], bool]: The discovered bin names, sorted, and whether
+            GitHub truncated the listing.
+    """
+    listing = github.list_files(repository)
+    names: set[str] = set()
+    for path in listing.paths:
+        parts = path.split("/")
+        if parts[:2] != ["src", "bin"]:
+            continue
+        if len(parts) == _SRC_BIN_FILE_DEPTH and parts[2].endswith(".rs"):
+            names.add(parts[2].removesuffix(".rs"))
+        elif len(parts) == _SRC_BIN_DIR_DEPTH and parts[3] == "main.rs":
+            names.add(parts[2])
+    names.discard("")
+    return sorted(names - declared), listing.truncated
+
+
+def _declared_names(bins: list[dict[str, object]]) -> set[str]:
+    """Pick the names of the declared ``[[bin]]`` tables.
+
+    Returns:
+        set[str]: The names that are strings.
+    """
+    return {name for table in bins if isinstance(name := table.get("name"), str)}
+
+
 def _cargo_bin_detection(
     manifest: dict[str, object], repository: Repository, github: GitHub
 ) -> Detection:
@@ -213,7 +262,7 @@ def _cargo_bin_detection(
     Args:
         manifest: The parsed ``Cargo.toml``.
         repository: The repository being resolved.
-        github: The GitHub adapter, for ``src/main.rs``.
+        github: The GitHub adapter, for ``src/main.rs`` and the file listing.
 
     Returns:
         Detection: ``found`` when the crate has a bin target.
@@ -223,15 +272,34 @@ def _cargo_bin_detection(
     gated = _gated_bins(manifest, bins)
     if bins and len(gated) < len(bins):
         return Detection(backend_string, "Cargo.toml declares a [[bin]] target")
-    if _autobins_disabled(manifest) or _shadows_default_bin(manifest, bins):
-        reason = _no_bin_reason(bins, gated)
-        return Detection(backend_string, reason, found=False)
-    if github.root_file(repository, "src/main.rs") is not None:
+    if _autobins_disabled(manifest):
+        return Detection(backend_string, _no_bin_reason(bins, gated), found=False)
+    shadowed = _shadows_default_bin(manifest, bins)
+    if not shadowed and github.root_file(repository, "src/main.rs") is not None:
         return Detection(backend_string, "the crate has a src/main.rs bin target")
-    reason = "Cargo.toml declares no [[bin]] target and there is no src/main.rs"
-    if bins:
-        reason = f"{_no_bin_reason(bins, gated)}, and there is no src/main.rs"
-    return Detection(backend_string, reason, found=False)
+    names, truncated = _src_bin_names(repository, github, _declared_names(bins))
+    if names:
+        reason = f"the crate has a src/bin target: {', '.join(names)}"
+        return Detection(backend_string, reason)
+    reason = _nothing_found_reason(bins, gated, shadowed=shadowed)
+    notes = (_TRUNCATED_NOTE,) if truncated else ()
+    return Detection(backend_string, reason, found=False, notes=notes)
+
+
+def _nothing_found_reason(
+    bins: list[dict[str, object]], gated: list[str], *, shadowed: bool
+) -> str:
+    """Explain why auto-discovery found no bin target either.
+
+    Returns:
+        str: The reason, without a trailing period.
+    """
+    reason = (
+        _no_bin_reason(bins, gated) if bins else "Cargo.toml declares no [[bin]] target"
+    )
+    if shadowed:
+        return reason
+    return f"{reason}, and there is no src/main.rs or src/bin target"
 
 
 def _shadows_default_bin(
@@ -263,7 +331,7 @@ def _no_bin_reason(bins: list[dict[str, object]], gated: list[str]) -> str:
     if not bins:
         return (
             "Cargo.toml sets autobins = false and declares no [[bin]] target, "
-            "so src/main.rs is not a bin target"
+            "so src/main.rs and src/bin are not bin targets"
         )
     return (
         "every [[bin]] target in Cargo.toml has required-features that "
@@ -275,7 +343,7 @@ def _no_bin_reason(bins: list[dict[str, object]], gated: list[str]) -> str:
 def _detect_cargo(
     repository: Repository, github: GitHub, platform: Platform
 ) -> Detection:
-    """Look for a ``[[bin]]`` table or a ``src/main.rs`` beside ``Cargo.toml``.
+    """Look for a ``[[bin]]`` table, ``src/main.rs`` or ``src/bin`` bin target.
 
     Returns:
         Detection: ``found`` when the crate has a bin target.

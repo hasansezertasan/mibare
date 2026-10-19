@@ -162,6 +162,7 @@ class GitHubApi:
         """
         self._transport: Transport = transport
         self._repositories: dict[str, object] = {}
+        self._trees: dict[str, RepositoryFiles] = {}
         self._token: str | None = (
             token if token is not None else os.environ.get("GITHUB_TOKEN")
         )
@@ -257,6 +258,8 @@ class GitHubApi:
     def list_files(self, repository: Repository) -> RepositoryFiles:
         """List every file in the repository with one git trees request.
 
+        The listing is kept, so the detectors that read it share one request.
+
         Args:
             repository: The repository to look up.
 
@@ -264,6 +267,17 @@ class GitHubApi:
             RepositoryFiles: The path of every file on the default branch, and
                 whether GitHub truncated the listing; empty when the
                 repository has no tree.
+        """
+        key = repository.shorthand
+        if key not in self._trees:
+            self._trees[key] = self._fetch_files(repository)
+        return self._trees[key]
+
+    def _fetch_files(self, repository: Repository) -> RepositoryFiles:
+        """Request the git tree of the repository's default branch.
+
+        Returns:
+            RepositoryFiles: The listing; empty when there is no tree.
         """
         # GitHub answers 409 Conflict from the git database of an empty repository.
         body = self._get(

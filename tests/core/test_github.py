@@ -402,3 +402,14 @@ def test_the_urllib_transport_returns_error_statuses_as_responses(
 
     errors[0].close()
     assert response == HttpResponse(404, b"nope")
+
+
+def test_list_files_is_requested_once_per_repository() -> None:
+    """Later callers share the first listing instead of costing another request."""
+    transport = FakeTransport({TREE_PATH: (200, {"tree": [], "truncated": False})})
+    api = GitHubApi(transport, token=None)
+
+    _ = api.list_files(REPO)
+    _ = api.list_files(REPO)
+
+    assert len(transport.requests) == 1

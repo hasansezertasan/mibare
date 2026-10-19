@@ -2,14 +2,16 @@
 
 from __future__ import annotations
 
+import base64
 from typing import TYPE_CHECKING
 
 import pytest
 
 from mibare.core.ecosystems import CARGO, ECOSYSTEMS, NPM, PYPI
+from mibare.core.github import GitHubApi
 from mibare.core.platform import Platform
 from mibare.core.resolve import Resolution, resolve
-from tests.fakes import FakeGitHub, FakeMise
+from tests.fakes import FakeGitHub, FakeMise, FakeTransport
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
@@ -292,3 +294,103 @@ def test_malformed_cargo_features_are_ignored() -> None:
     )
 
     assert _backends(_resolve({"Cargo.toml": manifest})) == ["cargo:owner/tool"]
+
+
+@pytest.mark.parametrize("path", ["src/bin/other.rs", "src/bin/other/main.rs"])
+def test_cargo_src_bin_targets_are_auto_discovered(path: str) -> None:
+    """``src/bin/<name>.rs`` and ``src/bin/<name>/main.rs`` are bin targets."""
+    resolution = _resolve({"Cargo.toml": CARGO_LIB, path: "fn main() {}"})
+
+    assert _backends(resolution) == ["cargo:owner/tool"]
+    assert any("src/bin" in r for r in resolution.candidates[0].reasons)
+
+
+@pytest.mark.parametrize(
+    "path", ["src/bin/other/lib.rs", "src/bin/a/b/main.rs", "src/bin/notes.txt"]
+)
+def test_other_files_under_src_bin_are_not_bin_targets(path: str) -> None:
+    """Only the two auto-discovered shapes count."""
+    resolution = _resolve({"Cargo.toml": CARGO_LIB, path: "fn main() {}"})
+
+    assert resolution.candidates == ()
+    assert "src/bin" in _excluded(resolution, "cargo:owner/tool")
+
+
+def test_autobins_false_ignores_src_bin() -> None:
+    """``autobins = false`` turns off ``src/bin`` discovery too."""
+    manifest = '[package]\nname = "tool"\nautobins = false\n'
+
+    resolution = _resolve({"Cargo.toml": manifest, "src/bin/other.rs": ""})
+
+    assert resolution.candidates == ()
+
+
+def test_a_virtual_workspace_ignores_src_bin() -> None:
+    """A manifest with no ``[package]`` owns no ``src/bin`` targets."""
+    resolution = _resolve({
+        "Cargo.toml": "[workspace]\nmembers = []\n",
+        "src/bin/other.rs": "",
+    })
+
+    assert resolution.candidates == ()
+
+
+def test_a_gated_declared_bin_replaces_the_src_bin_target_of_its_name() -> None:
+    """A declared bin named like a discovered one takes its place, gate included."""
+    manifest = _cargo("extra = []", 'other:["extra"]')
+
+    resolution = _resolve({"Cargo.toml": manifest, "src/bin/other.rs": ""})
+
+    assert resolution.candidates == ()
+
+
+def test_a_src_bin_target_survives_a_shadowed_default_bin() -> None:
+    """A declared bin named like the package replaces only ``src/main.rs``."""
+    manifest = _cargo("extra = []", 'tool:["extra"]')
+
+    resolution = _resolve({
+        "Cargo.toml": manifest,
+        "src/main.rs": "",
+        "src/bin/other.rs": "",
+    })
+
+    assert _backends(resolution) == ["cargo:owner/tool"]
+
+
+def test_src_main_rs_is_found_without_listing_the_repository() -> None:
+    """The cargo detector lists files only when ``src/main.rs`` is absent."""
+    fake = FakeGitHub(files={"Cargo.toml": CARGO_LIB, "src/main.rs": ""})
+
+    _ = resolve(TOOL, FakeMise(), LINUX_X64, github=fake, ecosystems=[CARGO])
+
+    assert fake.tree_calls == 0
+
+
+def test_a_truncated_listing_is_noted_when_no_cargo_bin_was_found() -> None:
+    """A cut-short listing may hide ``src/bin``, so the answer says so."""
+    fake = FakeGitHub(files={"Cargo.toml": CARGO_LIB})
+    fake.truncated = True
+
+    resolution = resolve(TOOL, FakeMise(), LINUX_X64, github=fake, ecosystems=[CARGO])
+
+    assert any("truncated" in note for note in resolution.notes)
+
+
+def test_cargo_and_go_share_one_file_listing_request() -> None:
+    """With the real adapter, the cargo and Go detectors cost one tree request."""
+    api = "/repos/owner/tool"
+    manifest = base64.b64encode(CARGO_LIB.encode()).decode()
+    tree = {"tree": [{"path": "src/bin/a.rs", "type": "blob"}], "truncated": False}
+    transport = FakeTransport({
+        api: (200, {"language": "Rust"}),
+        f"{api}/contents/Cargo.toml": (200, {"type": "file", "content": manifest}),
+        f"{api}/git/trees/HEAD?recursive=1": (200, tree),
+    })
+
+    resolution = resolve(
+        TOOL, FakeMise(), LINUX_X64, github=GitHubApi(transport, token=None)
+    )
+
+    assert _backends(resolution) == ["cargo:owner/tool"]
+    trees = [url for url, _ in transport.requests if "/git/trees/" in url]
+    assert len(trees) == 1
