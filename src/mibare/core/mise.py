@@ -3,7 +3,8 @@
 ``mise`` always runs in an isolated environment so the user's settings, such as
 ``MISE_DISABLE_BACKENDS``, never change the answer: a clean environment, a
 temporary ``HOME``, ``MISE_NO_CONFIG=1``, and ``GITHUB_TOKEN`` plus the proxy and
-certificate variables passed through so mise can still reach the network.
+certificate variables passed through so mise can still reach the network, and
+``SystemRoot``, which Windows needs in an explicit environment.
 """
 
 from __future__ import annotations
@@ -38,6 +39,11 @@ _PASSTHROUGH = (
     "no_proxy",
     "SSL_CERT_FILE",
     "SSL_CERT_DIR",
+    # Windows needs a valid %SystemRoot% in an explicit environment to run
+    # side-by-side assemblies (the subprocess documentation). os.environ is
+    # case-insensitive there; both spellings are listed for other systems.
+    "SYSTEMROOT",
+    "SystemRoot",
 )
 
 __all__ = ["MIN_MISE_VERSION", "Mise", "RegistryEntry", "SubprocessMise", "run_process"]

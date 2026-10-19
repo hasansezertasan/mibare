@@ -221,6 +221,30 @@ def test_connectivity_variables_reach_mise(monkeypatch: pytest.MonkeyPatch) -> N
     assert "MISE_DISABLE_BACKENDS" not in env
 
 
+@pytest.mark.parametrize("name", ["SYSTEMROOT", "SystemRoot"])
+def test_system_root_reaches_mise(monkeypatch: pytest.MonkeyPatch, name: str) -> None:
+    """``SystemRoot`` passes through, as Windows needs it in an explicit environment.
+
+    Given:
+        - A user environment with ``SYSTEMROOT`` (or ``SystemRoot``) and a
+          ``MISE_DISABLE_BACKENDS`` setting.
+    When:
+        - The registry is requested.
+    Then:
+        - Mise's environment carries ``SystemRoot`` and not the mise setting.
+    """
+    assert name in PASSTHROUGH
+    monkeypatch.setenv(name, "C:\\Windows")
+    monkeypatch.setenv("MISE_DISABLE_BACKENDS", "aqua")
+    runner = FakeRunner()
+
+    _ = SubprocessMise(run=runner).registry()
+
+    env = runner.calls[0][1]
+    assert env[name] == "C:\\Windows"
+    assert "MISE_DISABLE_BACKENDS" not in env
+
+
 def test_missing_mise_is_reported_with_an_install_hint() -> None:
     """A missing binary is an error that says how to install mise.
 

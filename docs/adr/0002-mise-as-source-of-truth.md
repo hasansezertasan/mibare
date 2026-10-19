@@ -1,6 +1,6 @@
 # Use the mise binary as the source of truth
 
-mibare depends on a `mise` binary for registry reverse lookup (`mise registry --json`) and for existence probes (`mise ls-remote <backend string>`), so it tracks mise releases with no snapshot to maintain. It runs mise in an isolated environment (clean environment, temporary `HOME`, `MISE_NO_CONFIG=1`, `GITHUB_TOKEN` and the proxy and certificate variables passed through), because user settings such as `MISE_DISABLE_BACKENDS` change `mise registry --json` output. We rejected a bundled snapshot of the registry TOMLs and the aqua registry: it would not need a mise binary, but it would need a scheduled refresh job and would lag behind mise.
+mibare depends on a `mise` binary for registry reverse lookup (`mise registry --json`) and for existence probes (`mise ls-remote <backend string>`), so it tracks mise releases with no snapshot to maintain. It runs mise in an isolated environment (clean environment, temporary `HOME`, `MISE_NO_CONFIG=1`, `GITHUB_TOKEN`, the proxy and certificate variables and `SystemRoot` passed through), because user settings such as `MISE_DISABLE_BACKENDS` change `mise registry --json` output. We rejected a bundled snapshot of the registry TOMLs and the aqua registry: it would not need a mise binary, but it would need a scheduled refresh job and would lag behind mise.
 
 ## Consequences
 
