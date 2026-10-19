@@ -988,8 +988,13 @@ PACKAGE_BIN = '{"name": "tool", "bin": "cli.js"}'
         ("aqua:Owner/Tool", ["aqua:owner/tool"], {}),
         ("github:Owner/Tool", ["github:owner/tool"], {}),
         ("npm:github:Owner/Tool", [], {"package.json": PACKAGE_BIN}),
+        (
+            "go:github.com/Owner/Tool",
+            [],
+            {"go.mod": "module github.com/owner/tool\n", "main.go": "package main\n"},
+        ),
     ],
-    ids=["aqua", "github", "npm"],
+    ids=["aqua", "github", "npm", "go"],
 )
 def test_backends_are_deduplicated_ignoring_the_case_of_owner_and_repo(
     registered: str, recipes: list[str], github_files: dict[str, str]

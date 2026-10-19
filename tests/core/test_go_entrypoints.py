@@ -357,3 +357,13 @@ def test_go_is_favoured_by_go_language() -> None:
         "pypi:owner/tool",
         "go:github.com/owner/tool",
     ]
+
+
+def test_cmd_directories_differing_only_in_case_are_separate_candidates() -> None:
+    """Case is folded for ``owner/repo`` only, so ``cmd/Foo`` and ``cmd/foo`` differ."""
+    files = {"go.mod": GO_MOD, "cmd/Foo/main.go": MAIN, "cmd/foo/main.go": MAIN}
+
+    assert _backends(_go(files)) == [
+        "go:github.com/owner/tool/cmd/Foo",
+        "go:github.com/owner/tool/cmd/foo",
+    ]

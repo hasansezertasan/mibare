@@ -194,14 +194,26 @@ def _points_at(repository: Repository, backend_string: str) -> bool:
 
 
 def _dedupe_key(backend_string: str) -> str:
-    """Fold the case of the tool path, leaving any ``[options]`` untouched.
+    """Fold the case of the GitHub ``owner`` and ``repo`` only.
+
+    A subpath (``/cmd/Foo``), a non-GitHub identifier and any ``[options]`` keep
+    their case, since only GitHub owner and repository names are case-insensitive.
 
     Returns:
         str: ``backend_string`` with its ``owner/repo`` part case-folded.
     """
     backend, colon, tool = backend_string.partition(":")
     path, bracket, options = tool.partition("[")
-    return f"{backend}{colon}{path.casefold()}{bracket}{options}"
+    prefix = ""
+    if backend not in _OWNER_REPO_BACKENDS:
+        matched = next((p for p in _REPOSITORY_PREFIXES if path.startswith(p)), None)
+        if matched is None:
+            return backend_string
+        prefix = matched
+    segments = path.removeprefix(prefix).split("/", 2)
+    segments[:2] = [segment.casefold() for segment in segments[:2]]
+    folded = prefix + "/".join(segments)
+    return f"{backend}{colon}{folded}{bracket}{options}"
 
 
 def _known(backends: dict[str, list[str]], backend_string: str) -> str:
