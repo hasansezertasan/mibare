@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+
 import pytest
 
 from mibare.core.errors import (
@@ -186,3 +188,99 @@ def test_registry_entries_for_other_repositories_are_ignored(backend: str) -> No
     resolution = resolve("BurntSushi/ripgrep", FakeMise([entry("rg", backend)]))
 
     assert resolution.candidates == ()
+
+
+def test_registry_candidates_carry_reasons_and_a_mise_use_command() -> None:
+    """Each candidate explains itself and gives a ready-to-paste command.
+
+    Given:
+        - A registry entry named ``rg`` listing two backends.
+    When:
+        - ``BurntSushi/ripgrep`` is resolved.
+    Then:
+        - Every candidate has a reason naming the registry entry and a
+          ``mise use`` command for its backend string.
+    """
+    resolution = resolve("BurntSushi/ripgrep", FakeMise([RIPGREP]))
+
+    assert [c.mise_use for c in resolution.candidates] == [
+        "mise use aqua:BurntSushi/ripgrep",
+        "mise use ubi:BurntSushi/ripgrep",
+    ]
+    assert all(
+        any("registry" in reason and "ripgrep" in reason for reason in c.reasons)
+        for c in resolution.candidates
+    )
+
+
+def test_mise_use_quotes_backend_strings_for_the_shell() -> None:
+    """A backend string with options is quoted so it pastes safely.
+
+    Given:
+        - A registry backend with a bracketed option.
+    When:
+        - It is resolved.
+    Then:
+        - The command quotes the backend string.
+    """
+    backend = "github:BurntSushi/ripgrep[exe=rg]"
+    resolution = resolve("BurntSushi/ripgrep", FakeMise([entry("rg", backend)]))
+
+    assert resolution.candidates[0].mise_use == f"mise use '{backend}'"
+
+
+def test_a_resolution_with_no_exclusions_reports_none() -> None:
+    """The registry step excludes nothing, so the exclusion list is empty."""
+    resolution = resolve("BurntSushi/ripgrep", FakeMise([RIPGREP]))
+
+    assert resolution.exclusions == ()
+
+
+def test_to_dict_has_a_stable_shape() -> None:
+    """The dict form is the documented JSON shape.
+
+    Given:
+        - A resolved repository with two candidates.
+    When:
+        - It is converted to a dict.
+    Then:
+        - It has exactly the documented keys, including the mise version, and
+          the recommendation is the first candidate.
+    """
+    resolution = resolve("BurntSushi/ripgrep", FakeMise([RIPGREP]))
+    data = json.loads(json.dumps(resolution.to_dict()))
+
+    assert list(data) == [
+        "schema_version",
+        "repository",
+        "mise_version",
+        "recommendation",
+        "candidates",
+        "excluded",
+    ]
+    assert data["schema_version"] == 1
+    assert data["repository"] == "BurntSushi/ripgrep"
+    assert data["mise_version"] == "2026.10.13"
+    assert data["recommendation"] == "aqua:BurntSushi/ripgrep"
+    candidates = data["candidates"]
+    assert isinstance(candidates, list)
+    assert list(candidates[0]) == [
+        "backend_string",
+        "recommended",
+        "tier",
+        "command",
+        "reasons",
+    ]
+    assert [c["recommended"] for c in candidates] == [True, False]
+    assert candidates[1]["command"] == "mise use ubi:BurntSushi/ripgrep"
+    assert candidates[0]["tier"] is None
+    assert data["excluded"] == []
+
+
+def test_to_dict_without_a_backend_has_a_null_recommendation() -> None:
+    """No backend found gives a null recommendation and no candidates."""
+    data = resolve("sharkdp/fd", FakeMise([RIPGREP])).to_dict()
+    assert isinstance(data["candidates"], list)
+
+    assert data["recommendation"] is None
+    assert data["candidates"] == []

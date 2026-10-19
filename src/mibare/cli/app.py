@@ -8,6 +8,7 @@ argument, prints the resolution and maps the outcome onto an exit code.
 
 from __future__ import annotations
 
+import json
 from typing import Annotated
 
 import typer
@@ -41,20 +42,34 @@ def _subject(resolution: Resolution) -> str:
     return f"{resolution.repository.shorthand} ({mise} registry)"
 
 
-def _render(resolution: Resolution) -> str:
+def _render(resolution: Resolution, *, verbose: bool = False) -> str:
     """Format a resolution for the terminal.
 
     Args:
         resolution: The resolution to show.
+        verbose: Whether to also list the excluded candidates.
 
     Returns:
         str: The text to print; the recommendation is marked.
     """
-    lines = [_subject(resolution)]
+    if resolution.recommendation is None:
+        lines = [f"No backend found for {_subject(resolution)}."]
+    else:
+        lines = [_subject(resolution)]
     for index, candidate in enumerate(resolution.candidates):
         marker = "*" if index == 0 else " "
         suffix = "  (recommended)" if index == 0 else ""
         lines.append(f"{marker} {candidate.backend_string}{suffix}")
+        lines.extend(f"    - {reason}" for reason in candidate.reasons)
+        lines.append(f"    $ {candidate.mise_use}")
+    if verbose:
+        if resolution.exclusions:
+            lines.append("Excluded:")
+            lines.extend(
+                f"  {x.backend_string}: {x.reason}" for x in resolution.exclusions
+            )
+        else:
+            lines.append("Excluded: none")
     return "\n".join(lines)
 
 
@@ -63,6 +78,16 @@ def main(
     repository: Annotated[
         str, typer.Argument(help="A GitHub URL or owner/repo shorthand.")
     ],
+    *,
+    json_output: Annotated[
+        bool, typer.Option("--json", help="Print the resolution as JSON.")
+    ] = False,
+    verbose: Annotated[
+        bool,
+        typer.Option(
+            "--verbose", help="Also explain which candidates were excluded and why."
+        ),
+    ] = False,
 ) -> None:
     """Recommend which mise backend to install a GitHub repository with.
 
@@ -81,7 +106,9 @@ def main(
     except MibareError as error:
         typer.echo(f"Error: {error}", err=True)
         raise typer.Exit(code=EXIT_ERROR) from None
+    if json_output:
+        typer.echo(json.dumps(resolution.to_dict(), indent=2))
+    else:
+        typer.echo(_render(resolution, verbose=verbose))
     if resolution.recommendation is None:
-        typer.echo(f"No backend found for {_subject(resolution)}.")
         raise typer.Exit(code=EXIT_NO_BACKEND)
-    typer.echo(_render(resolution))
