@@ -6,10 +6,13 @@ import shlex
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
+from mibare.core.assets import matching_assets
+from mibare.core.errors import GitHubUnavailableError
 from mibare.core.platform import Platform, host_platform
 from mibare.core.repository import Repository, parse_repository
 
 if TYPE_CHECKING:
+    from mibare.core.github import GitHub
     from mibare.core.mise import Mise
 
 __all__ = ["SCHEMA_VERSION", "Candidate", "Exclusion", "Resolution", "resolve"]
@@ -236,6 +239,54 @@ def _found_backends(repository: Repository, mise: Mise) -> dict[str, list[str]]:
     return found
 
 
+def _github_release(
+    repository: Repository, mise: Mise, github: GitHub, target: Platform
+) -> list[str]:
+    """Run the ``github:`` step: offer it when a release has a platform asset.
+
+    Args:
+        repository: The repository being resolved.
+        mise: The mise adapter, for the existence probe.
+        github: The GitHub adapter, for the latest release's assets.
+        target: The platform the asset must be built for.
+
+    Returns:
+        list[str]: The reasons to offer ``github:owner/repo``; empty when it
+            should not be offered.
+    """
+    if not mise.recipe_exists(f"github:{repository.shorthand}"):
+        return []
+    matches = matching_assets(github.latest_release_assets(repository), target)
+    if not matches:
+        return []
+    return [f"the latest release has an asset for {target.label}: {matches[0]}"]
+
+
+def _add_github(
+    found: dict[str, list[str]],
+    repository: Repository,
+    mise: Mise,
+    github: GitHub | None,
+    target: Platform,
+) -> GitHubUnavailableError | None:
+    """Add the ``github:`` backend to ``found`` when its step passes.
+
+    Returns:
+        GitHubUnavailableError | None: The failure when GitHub was unreachable,
+            otherwise ``None``.
+    """
+    backend = f"github:{repository.shorthand}"
+    if github is None or backend in found:
+        return None
+    try:
+        reasons = _github_release(repository, mise, github, target)
+    except GitHubUnavailableError as error:
+        return error
+    if reasons:
+        found[backend] = reasons
+    return None
+
+
 def _rank(
     found: dict[str, list[str]], target: Platform
 ) -> tuple[tuple[Candidate, ...], tuple[Exclusion, ...]]:
@@ -259,7 +310,10 @@ def _rank(
 
 
 def resolve(
-    repository: str, mise: Mise, platform: Platform | None = None
+    repository: str,
+    mise: Mise,
+    platform: Platform | None = None,
+    github: GitHub | None = None,
 ) -> Resolution:
     """Resolve ``repository`` to the mise backends that can install it.
 
@@ -267,14 +321,27 @@ def resolve(
         repository: A GitHub URL or ``owner/repo`` shorthand.
         mise: The mise adapter.
         platform: The target platform; defaults to the host.
+        github: The GitHub adapter. Without one the steps that need the GitHub
+            API are left out, so ``resolve()`` stays offline.
 
     Returns:
         Resolution: The ranked candidates; the first is the recommendation.
+            When GitHub is unreachable, the offline candidates are kept and
+            the skipped steps are named in ``notes``.
+
+        A ``GitHubUnavailableError`` is raised instead when GitHub is
+        unreachable and no offline step found a candidate, so the answer does
+        not read as "no backend".
     """
     parsed = parse_repository(repository)
     host = host_platform()
     target = platform or host
     mise_version = mise.version()
-    candidates, exclusions = _rank(_found_backends(parsed, mise), target)
-    notes = _platform_notes(target, host)
+    found = _found_backends(parsed, mise)
+    failure = _add_github(found, parsed, mise, github, target)
+    candidates, exclusions = _rank(found, target)
+    if failure is not None and not candidates:
+        raise failure
+    skipped = (f"Skipped the github: step: {failure}",) if failure else ()
+    notes = (*_platform_notes(target, host), *skipped)
     return Resolution(parsed, mise_version, candidates, exclusions, target, notes)

@@ -8,6 +8,7 @@ import pytest
 
 import mibare.core.resolve as resolve_module
 from mibare.core.errors import (
+    GitHubUnavailableError,
     InvalidPlatformError,
     InvalidRepositoryError,
     MiseError,
@@ -16,7 +17,7 @@ from mibare.core.errors import (
 )
 from mibare.core.platform import Platform
 from mibare.core.resolve import Resolution, resolve
-from tests.fakes import FakeMise, entry
+from tests.fakes import FakeGitHub, FakeMise, entry
 
 HOST = Platform("macos", "arm64")
 RIPGREP = entry("ripgrep", "aqua:BurntSushi/ripgrep", "ubi:BurntSushi/ripgrep")
@@ -345,7 +346,7 @@ def test_the_target_defaults_to_the_host(monkeypatch: pytest.MonkeyPatch) -> Non
 
     assert resolution.platform == windows
     assert _backends(resolution) == ["aqua:o/r"]
-    assert resolution.notes == ()
+    assert not any("github:" in note for note in resolution.notes)
 
 
 def test_a_target_that_differs_from_the_host_is_noted(
@@ -611,3 +612,109 @@ def test_aqua_recipe_is_added_and_outranks_a_legacy_registry_backend() -> None:
         "aqua:BurntSushi/ripgrep",
         "ubi:BurntSushi/ripgrep",
     ]
+
+
+LINUX_X64 = Platform("linux", "x64")
+TOOL = "owner/tool"
+GITHUB_TOOL = "github:owner/tool"
+TOOL_ASSETS = ("tool-linux-x64.tar.gz", "tool-darwin-arm64.tar.gz")
+
+
+def test_github_candidate_when_the_release_has_a_platform_asset() -> None:
+    """A probed repository with an asset for the target gets a github candidate.
+
+    Given:
+        - A repository mise can probe as ``github:`` and a latest release with
+          a linux-x64 asset.
+    When:
+        - It is resolved for linux-x64.
+    Then:
+        - ``github:owner/tool`` is the recommendation, with a reason.
+    """
+    mise = FakeMise(recipes=[GITHUB_TOOL])
+
+    resolution = resolve(TOOL, mise, LINUX_X64, github=FakeGitHub(TOOL_ASSETS))
+
+    assert resolution.recommendation is not None
+    assert resolution.recommendation.backend_string == GITHUB_TOOL
+    assert resolution.recommendation.tier == 2
+    assert resolution.recommendation.reasons
+
+
+def test_no_github_candidate_without_an_asset_for_the_platform() -> None:
+    """A release with assets only for other platforms gives no candidate."""
+    mise = FakeMise(recipes=[GITHUB_TOOL])
+    github = FakeGitHub(["tool-darwin-arm64.tar.gz", "tool-linux-x64.tar.gz.sha256"])
+
+    resolution = resolve(TOOL, mise, LINUX_X64, github=github)
+
+    assert resolution.candidates == ()
+
+
+def test_no_github_candidate_when_the_probe_fails() -> None:
+    """Assets alone are not enough; mise must be able to list the repository."""
+    resolution = resolve(TOOL, FakeMise(), LINUX_X64, github=FakeGitHub(TOOL_ASSETS))
+
+    assert resolution.candidates == ()
+
+
+def test_github_comes_after_registry_and_aqua() -> None:
+    """The github step adds its candidate after the earlier steps' candidates."""
+    mise = FakeMise(recipes=["aqua:owner/tool", GITHUB_TOOL])
+
+    resolution = resolve(TOOL, mise, LINUX_X64, github=FakeGitHub(TOOL_ASSETS))
+
+    assert [c.backend_string for c in resolution.candidates] == [
+        "aqua:owner/tool",
+        GITHUB_TOOL,
+    ]
+
+
+def test_github_step_is_skipped_when_the_registry_already_lists_it() -> None:
+    """A github backend found earlier is not looked up again."""
+    mise = FakeMise([entry("tool", GITHUB_TOOL)], recipes=[GITHUB_TOOL])
+    github = FakeGitHub(TOOL_ASSETS)
+
+    resolution = resolve(TOOL, mise, LINUX_X64, github=github)
+
+    assert [c.backend_string for c in resolution.candidates] == [GITHUB_TOOL]
+    assert github.calls == 0
+
+
+def test_without_a_github_adapter_the_step_is_left_out() -> None:
+    """``resolve()`` stays offline when no GitHub adapter is passed."""
+    resolution = resolve(TOOL, FakeMise(recipes=[GITHUB_TOOL]), LINUX_X64)
+
+    assert resolution.candidates == ()
+    assert not any("github:" in note for note in resolution.notes)
+
+
+def test_network_failure_keeps_offline_results_and_names_skipped_steps() -> None:
+    """Offline candidates survive a GitHub failure, with a note on what was skipped.
+
+    Given:
+        - An aqua recipe and a probeable github repository, with GitHub down.
+    When:
+        - The repository is resolved.
+    Then:
+        - The aqua candidate is returned and a note names the skipped step.
+    """
+    mise = FakeMise(recipes=["aqua:owner/tool", GITHUB_TOOL])
+    github = FakeGitHub(error=GitHubUnavailableError("could not reach GitHub"))
+
+    resolution = resolve(TOOL, mise, LINUX_X64, github=github)
+
+    assert [c.backend_string for c in resolution.candidates] == ["aqua:owner/tool"]
+    assert any(
+        "github:" in note and "skipped" in note.lower() for note in resolution.notes
+    )
+    assert resolution.to_dict()["notes"] == list(resolution.notes)
+
+
+def test_network_failure_without_results_raises() -> None:
+    """With nothing usable and GitHub down, resolution fails instead of 'no backend'."""
+    mise = FakeMise(recipes=[GITHUB_TOOL])
+    github = FakeGitHub(error=GitHubUnavailableError("could not reach GitHub"))
+
+    with pytest.raises(GitHubUnavailableError, match="could not reach GitHub"):
+        _ = resolve(TOOL, mise, LINUX_X64, github=github)

@@ -14,6 +14,7 @@ from typing import Annotated
 import typer
 
 from mibare.core.errors import MibareError
+from mibare.core.github import GitHubApi
 from mibare.core.mise import SubprocessMise
 from mibare.core.platform import Platform
 from mibare.core.resolve import Candidate, Resolution, resolve
@@ -131,7 +132,7 @@ def main(
     """
     try:
         target = Platform.parse(platform) if platform is not None else None
-        resolution = resolve(repository, SubprocessMise(), target)
+        resolution = resolve(repository, SubprocessMise(), target, github=GitHubApi())
     except MibareError as error:
         typer.echo(f"Error: {error}", err=True)
         raise typer.Exit(code=EXIT_ERROR) from None

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 __all__ = [
+    "GitHubUnavailableError",
     "InvalidPlatformError",
     "InvalidRepositoryError",
     "MibareError",
@@ -22,6 +23,10 @@ class InvalidRepositoryError(MibareError):
 
 class InvalidPlatformError(MibareError):
     """The platform is not a known ``os-arch`` pair."""
+
+
+class GitHubUnavailableError(MibareError):
+    """The GitHub API could not be used: no network, a rate limit or a server error."""
 
 
 class MiseError(MibareError):

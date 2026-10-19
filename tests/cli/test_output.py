@@ -42,8 +42,10 @@ def _resolution(
 ) -> Callable[..., Resolution]:
     """Build a stand-in for ``resolve()`` returning a fixed resolution."""
 
-    def fake(repository: str, mise: object, platform: object = None) -> Resolution:
-        del repository, mise, platform
+    def fake(
+        repository: str, mise: object, platform: object = None, github: object = None
+    ) -> Resolution:
+        del repository, mise, platform, github
         return Resolution(REPOSITORY, "2026.10.13", candidates, exclusions)
 
     return fake
@@ -198,8 +200,10 @@ def test_json_errors_still_exit_2_with_their_message(
 ) -> None:
     """Errors are not JSON: they exit 2 with the usual message."""
 
-    def failing(repository: str, mise: object, platform: object = None) -> Resolution:
-        del repository, mise, platform
+    def failing(
+        repository: str, mise: object, platform: object = None, github: object = None
+    ) -> Resolution:
+        del repository, mise, platform, github
         message = "gone"
         raise MiseNotFoundError(message)
 
@@ -225,8 +229,10 @@ def test_text_output_shows_tier_warning_and_notes(
         - Each candidate line carries its tier, and the warning and note show.
     """
 
-    def fake(repository: str, mise: object, platform: object = None) -> Resolution:
-        del repository, mise, platform
+    def fake(
+        repository: str, mise: object, platform: object = None, github: object = None
+    ) -> Resolution:
+        del repository, mise, platform, github
         candidates = (
             Candidate("aqua:BurntSushi/ripgrep", (REASON,), tier=2),
             Candidate(
@@ -257,8 +263,10 @@ def test_json_output_carries_tier_legacy_and_notes(
 ) -> None:
     """``--json`` fills the ``tier`` slot and reports legacy flags and notes."""
 
-    def fake(repository: str, mise: object, platform: object = None) -> Resolution:
-        del repository, mise, platform
+    def fake(
+        repository: str, mise: object, platform: object = None, github: object = None
+    ) -> Resolution:
+        del repository, mise, platform, github
         legacy = Candidate("ubi:BurntSushi/ripgrep", tier=5, legacy=True, warning="w")
         return Resolution(REPOSITORY, "2026.10.13", (legacy,), notes=("n",))
 

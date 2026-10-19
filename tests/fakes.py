@@ -7,7 +7,9 @@ from typing import TYPE_CHECKING
 from mibare.core.mise import RegistryEntry
 
 if TYPE_CHECKING:
-    from collections.abc import Sequence
+    from collections.abc import Mapping, Sequence
+
+    from mibare.core.repository import Repository
 
 
 class FakeMise:
@@ -61,3 +63,56 @@ def entry(tool: str, *backends: str) -> RegistryEntry:
         RegistryEntry: The entry.
     """
     return RegistryEntry(tool=tool, backends=backends)
+
+
+class FakeGitHub:
+    """A GitHub adapter that answers from fixtures instead of the network."""
+
+    def __init__(
+        self,
+        assets: Sequence[str] = (),
+        *,
+        language: str | None = None,
+        files: Mapping[str, str] | None = None,
+        error: Exception | None = None,
+    ) -> None:
+        """Set the fixture release assets, language and root files, or an error."""
+        self._assets = tuple(assets)
+        self._language = language
+        self._files = dict(files or {})
+        self._error = error
+        self.calls = 0
+
+    def latest_release_assets(self, repository: Repository) -> tuple[str, ...]:
+        """Return the fixture asset names, or fail with the fixture error.
+
+        Returns:
+            tuple[str, ...]: The fixture asset names.
+        """
+        del repository
+        self.calls += 1
+        if self._error is not None:
+            raise self._error
+        return self._assets
+
+    def primary_language(self, repository: Repository) -> str | None:
+        """Return the fixture language, or fail with the fixture error.
+
+        Returns:
+            str | None: The fixture language.
+        """
+        del repository
+        if self._error is not None:
+            raise self._error
+        return self._language
+
+    def root_file(self, repository: Repository, name: str) -> str | None:
+        """Return a fixture root file, or fail with the fixture error.
+
+        Returns:
+            str | None: The file's text, or ``None`` when it is absent.
+        """
+        del repository
+        if self._error is not None:
+            raise self._error
+        return self._files.get(name)

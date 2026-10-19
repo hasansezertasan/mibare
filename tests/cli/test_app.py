@@ -9,11 +9,14 @@ import pytest
 from typer.testing import CliRunner
 
 from mibare.core.errors import (
+    GitHubUnavailableError,
     InvalidRepositoryError,
     MibareError,
     MiseNotFoundError,
     MiseTooOldError,
 )
+from mibare.core.github import GitHubApi
+from mibare.core.mise import SubprocessMise
 from mibare.core.platform import Platform
 from mibare.core.repository import Repository
 from mibare.core.resolve import Candidate, Resolution
@@ -40,9 +43,12 @@ def _resolving(*backends: str) -> Callable[..., Resolution]:
     """Build a stand-in for ``resolve()`` that finds ``backends``."""
 
     def fake(
-        repository: str, mise: object, platform: Platform | None = None
+        repository: str,
+        mise: object,
+        platform: Platform | None = None,
+        github: object = None,
     ) -> Resolution:
-        del repository, mise, platform
+        del repository, mise, platform, github
         return Resolution(
             REPOSITORY, "2026.10.13", tuple(Candidate(b) for b in backends)
         )
@@ -54,9 +60,12 @@ def _failing(error: Exception) -> Callable[..., Resolution]:
     """Build a stand-in for ``resolve()`` that raises ``error``."""
 
     def fake(
-        repository: str, mise: object, platform: Platform | None = None
+        repository: str,
+        mise: object,
+        platform: Platform | None = None,
+        github: object = None,
     ) -> Resolution:
-        del repository, mise, platform
+        del repository, mise, platform, github
         raise error
 
     return fake
@@ -108,9 +117,12 @@ def test_the_repository_argument_reaches_resolve(
     asked: list[str] = []
 
     def spy(
-        repository: str, mise: object, platform: Platform | None = None
+        repository: str,
+        mise: object,
+        platform: Platform | None = None,
+        github: object = None,
     ) -> Resolution:
-        del mise, platform
+        del mise, platform, github
         asked.append(repository)
         return Resolution(REPOSITORY, "2026.10.13", ())
 
@@ -245,9 +257,12 @@ def test_platform_reaches_resolve_as_a_platform(
     asked: list[Platform | None] = []
 
     def spy(
-        repository: str, mise: object, platform: Platform | None = None
+        repository: str,
+        mise: object,
+        platform: Platform | None = None,
+        github: object = None,
     ) -> Resolution:
-        del repository, mise
+        del repository, mise, github
         asked.append(platform)
         return Resolution(REPOSITORY, "2026.10.13", ())
 
@@ -265,9 +280,12 @@ def test_without_platform_resolve_uses_the_host_default(
     asked: list[Platform | None] = []
 
     def spy(
-        repository: str, mise: object, platform: Platform | None = None
+        repository: str,
+        mise: object,
+        platform: Platform | None = None,
+        github: object = None,
     ) -> Resolution:
-        del repository, mise
+        del repository, mise, github
         asked.append(platform)
         return Resolution(REPOSITORY, "2026.10.13", ())
 
@@ -314,9 +332,12 @@ def test_warnings_and_notes_are_shown(
     """
 
     def fake(
-        repository: str, mise: object, platform: Platform | None = None
+        repository: str,
+        mise: object,
+        platform: Platform | None = None,
+        github: object = None,
     ) -> Resolution:
-        del repository, mise, platform
+        del repository, mise, platform, github
         candidate = Candidate(
             "ubi:BurntSushi/ripgrep", tier=5, legacy=True, warning="ubi is legacy."
         )
@@ -330,3 +351,47 @@ def test_warnings_and_notes_are_shown(
 
     assert "ubi is legacy." in result.output
     assert "Target differs." in result.output
+
+
+def test_the_cli_builds_the_real_adapters(
+    runner: CliRunner, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """``resolve()`` receives a real mise adapter and a real GitHub adapter.
+
+    Given:
+        - A ``resolve()`` that records the adapters it is given.
+    When:
+        - ``mibare`` runs.
+    Then:
+        - The adapters are a ``SubprocessMise`` and a ``GitHubApi``.
+    """
+    seen: list[object] = []
+
+    def spy(
+        repository: str,
+        mise: object,
+        platform: Platform | None = None,
+        github: object = None,
+    ) -> Resolution:
+        del repository, platform
+        seen.extend([mise, github])
+        return Resolution(REPOSITORY, "2026.10.13", ())
+
+    monkeypatch.setattr(cli, "resolve", spy)
+
+    _ = runner.invoke(cli.app, ["BurntSushi/ripgrep"])
+
+    assert [type(adapter) for adapter in seen] == [SubprocessMise, GitHubApi]
+
+
+def test_an_unusable_network_with_no_results_exits_2(
+    runner: CliRunner, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A GitHub failure that leaves no results is an error, not 'no backend'."""
+    error = GitHubUnavailableError("could not reach GitHub")
+    monkeypatch.setattr(cli, "resolve", _failing(error))
+
+    result: Result = runner.invoke(cli.app, ["BurntSushi/ripgrep"])
+
+    assert result.exit_code == 2
+    assert "could not reach GitHub" in result.output
