@@ -15,7 +15,7 @@ Legacy ``// +build`` lines are not read.
 from __future__ import annotations
 
 import re
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, final
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
@@ -132,6 +132,7 @@ def _tokens(expression: str) -> list[str]:
     return tokens
 
 
+@final
 class _Evaluator:
     """A recursive-descent evaluator for ``||``, ``&&``, ``!`` and parentheses."""
 

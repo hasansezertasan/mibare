@@ -24,7 +24,7 @@ entrypoint hidden behind the limit is missed.
 from __future__ import annotations
 
 import re
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, final
 
 from mibare.core.detection import Detection
 from mibare.core.go_constraints import constraint_matches, name_matches
@@ -48,6 +48,7 @@ _PACKAGE = re.compile(r"^\s*package\s+(\w+)", re.MULTILINE)
 _MODULE = re.compile(r'^\s*module\s+"?([^\s"]+)"?', re.MULTILINE)
 
 
+@final
 class _Reader:
     """Reads repository files within the detector's shared read budget."""
 

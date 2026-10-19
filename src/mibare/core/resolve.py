@@ -560,6 +560,20 @@ def _gather(
     return _Gathered(candidates, exclusions, findings.skipped, tuple(findings.notes))
 
 
+def _notes(
+    target: Platform, host: Platform | None, gathered: _Gathered
+) -> tuple[str, ...]:
+    """Collect the platform, skipped-step and search notes.
+
+    Returns:
+        tuple[str, ...]: The notes, in that order.
+    """
+    skipped = tuple(
+        f"Skipped the {step} step: {why}" for step, why in gathered.skipped.items()
+    )
+    return (*_platform_notes(target, host), *skipped, *gathered.notes)
+
+
 def _try_host_platform() -> Platform | None:
     """Detect the host platform for the host-versus-target note.
 
@@ -611,12 +625,9 @@ def resolve(
         host, target = _try_host_platform(), platform
     mise_version = mise.version()
     gathered = _gather(parsed, mise, github, target, ecosystems)
-    candidates, exclusions, skipped, search_notes = gathered
+    candidates, exclusions, skipped, _ = gathered
     if not candidates and skipped:
         failure = next(iter(skipped.values()))
         raise failure
-    skipped_notes = tuple(
-        f"Skipped the {step} step: {why}" for step, why in skipped.items()
-    )
-    notes = (*_platform_notes(target, host), *skipped_notes, *search_notes)
+    notes = _notes(target, host, gathered)
     return Resolution(parsed, mise_version, candidates, exclusions, target, notes)
