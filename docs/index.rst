@@ -18,6 +18,14 @@ Mise Backend Resolver: recommends which mise backend to install a GitHub reposit
 
    maintaining/setup
 
+.. toctree::
+   :maxdepth: 1
+   :caption: Project notes
+   :glob:
+
+   adr/*
+   research/*
+
 Indices and tables
 ==================
 

@@ -47,8 +47,9 @@ extensions = [
 source_suffix = {".rst": "restructuredtext", ".md": "markdown"}
 # ``_generated`` holds machine-generated reference material (CLI Markdown, etc.)
 # that is ``{include}``d/``literalinclude``d into real pages; exclude it so those
-# fragments are not also built as standalone orphan documents.
-exclude_patterns = ["_build", "Thumbs.db", ".DS_Store", "_generated"]
+# fragments are not also built as standalone orphan documents. ``agents`` holds
+# the coding-agent configuration docs, which are not part of the published site.
+exclude_patterns = ["_build", "Thumbs.db", ".DS_Store", "_generated", "agents"]
 
 # autosectionlabel can emit duplicate-label warnings across documents; the
 # document prefix keeps them unique, so no blanket suppression is needed.
