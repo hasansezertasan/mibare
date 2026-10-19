@@ -69,11 +69,9 @@ def test_user_mise_settings_do_not_change_the_registry(
     assert SubprocessMise().registry() == _registry()
 
 
-@pytest.mark.skip(
-    reason="Pending the existence probe on SubprocessMise (ticket #5); enable "
-    "once it lands: known-present aqua:BurntSushi/ripgrep, known-absent "
-    "aqua:mibare-nonexistent/nonexistent."
-)
-def test_existence_probe_tells_a_present_backend_from_an_absent_one() -> None:
-    """Tell a present backend from an absent one."""
-    raise NotImplementedError
+def test_recipe_exists_tells_a_present_backend_from_an_absent_one() -> None:
+    """Probe a known-present and a known-absent aqua backend string."""
+    mise = SubprocessMise()
+
+    assert mise.recipe_exists("aqua:BurntSushi/ripgrep")
+    assert not mise.recipe_exists("aqua:mibare-nonexistent/nonexistent")
