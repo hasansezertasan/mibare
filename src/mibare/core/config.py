@@ -9,7 +9,7 @@ from functools import cache
 from mibare.__metadata__ import PROJECT_NAME
 
 # Dashes are normalized to underscores so the prefix is a valid shell variable
-# name (e.g. ``my-project`` -> ``MY_PROJECT_``).
+# name (e.g. ``mibare`` -> ``MIBARE_``).
 _ENV_PREFIX = f"{PROJECT_NAME.upper().replace('-', '_')}_"
 
 
