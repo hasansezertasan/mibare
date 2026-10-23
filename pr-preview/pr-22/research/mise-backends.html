@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="en" data-accent-color="amber" data-content_root="../">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"><title>How mise models and chooses backends - mibare</title><link rel="index" title="Index" href="../genindex.html" /><link rel="search" title="Search" href="../search.html" /><link rel="prev" title="Target a single Python version" href="../adr/0003-single-python-version.html" /><script>
+    function setColorMode(t){let e=document.documentElement;e.setAttribute("data-color-mode",t);let a=window.matchMedia&&window.matchMedia("(prefers-color-scheme: dark)").matches,s=t;"auto"===t&&(s=a?"dark":"light"),"light"===s?(e.classList.remove("dark"),e.classList.add("light")):(e.classList.remove("light"),e.classList.add("dark"))}
+    setColorMode(localStorage._theme||"auto");
+  </script><link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=e1a1ceaf" />
+    <link rel="stylesheet" type="text/css" href="../_static/shibuya.css?v=2ceb65ce" />
+    <link rel="stylesheet" type="text/css" href="../_static/copybutton.css?v=76b2166b" />
+    <link rel="stylesheet" type="text/css" href="../_static/togglebutton.css?v=9c3e77be" />
+    <link rel="stylesheet" type="text/css" href="../_static/sphinx-design.min.css?v=95c83b7e" />
+    <link rel="stylesheet" type="text/css" href="../_static/sphinx_paramlinks.css" />
+    <link media="print" rel="stylesheet" type="text/css" href="../_static/print.css?v=20ff2c19" />
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --sy-f-text: "Inter", var(--sy-f-sys), var(--sy-f-cjk), sans-serif;
+  --sy-f-heading: "Inter", var(--sy-f-sys), var(--sy-f-cjk), sans-serif;
+}
+</style>
+    
+  <meta property="og:type" content="website"/><meta property="og:title" content="How mise models and chooses backends"/>
+    <meta name="twitter:card" content="summary"/>
+  </head>
+<body><div class="sy-head">
+  <div class="sy-head-blur"></div>
+  <div class="sy-head-inner sy-container mx-auto">
+    <a class="sy-head-brand" href="../index.html">
+      
+      
+      <strong>mibare</strong>
+    </a>
+    <div class="sy-head-nav" id="head-nav">
+      <nav class="sy-head-links"></nav>
+      <div class="sy-head-extra flex items-center print:hidden"><form class="searchbox flex items-center" action="../search.html" method="get">
+  <input type="text" name="q" placeholder="Search" />
+  <kbd>/</kbd>
+</form><div class="sy-head-socials">
+  <a href="https://github.com/hasansezertasan/mibare" aria-label="GitHub">
+    <iconify-icon icon="simple-icons:github"></iconify-icon>
+  </a></div></div>
+    </div>
+    <div class="sy-head-actions flex items-center shrink-0 print:hidden"><button class="js-theme theme-switch flex items-center"
+data-aria-auto="Switch to light color mode"
+data-aria-light="Switch to dark color mode"
+data-aria-dark="Switch to auto color mode">
+<i class="i-lucide theme-icon"></i>
+</button><button class="md:hidden flex items-center js-menu" aria-label="Menu" type="button" aria-controls="head-nav" aria-expanded="false">
+        <div class="hamburger">
+          <span class="hamburger_1"></span>
+          <span class="hamburger_2"></span>
+          <span class="hamburger_3"></span>
+        </div>
+      </button>
+    </div>
+  </div>
+</div>
+<div class="sy-page sy-container flex mx-auto">
+  <aside id="lside" class="sy-lside md:w-72 md:shrink-0 print:hidden">
+    <div class="sy-lside-inner md:sticky">
+      <div class="sy-scrollbar p-6">
+        <div class="globaltoc" data-expand-depth="0"><p class="caption" role="heading" aria-level="3"><span class="caption-text">Contents</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../installation.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../usage.html">Usage</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../cli-reference.html">CLI reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../modules.html">Modules</a></li>
+</ul>
+<p class="caption" role="heading" aria-level="3"><span class="caption-text">Project notes</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../adr/0001-python-with-uv-and-library-core.html">Python with uv, library core behind the CLI</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../adr/0002-mise-as-source-of-truth.html">Use the mise binary as the source of truth</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../adr/0003-single-python-version.html">Target a single Python version</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">How mise models and chooses backends</a></li>
+</ul>
+
+        </div>
+      </div>
+    </div>
+  </aside>
+  <div class="lside-overlay js-menu" role="button" aria-label="Close left sidebar" aria-controls="lside" aria-expanded="false"></div>
+  <aside id="rside" class="sy-rside pb-3 w-64 shrink-0 order-last">
+    <button class="rside-close js-menu xl:hidden" aria-label="Close Table of Contents" type="button" aria-controls="rside" aria-expanded="false">
+      <i class="i-lucide close"></i>
+    </button>
+    <div class="sy-scrollbar sy-rside-inner px-6 xl:top-16 xl:sticky xl:pl-0 pt-6 pb-4"><div class="localtoc"><h3>On this page</h3><ul>
+<li><a class="reference internal" href="#summary">Summary</a></li>
+<li><a class="reference internal" href="#backends-mise-supports">1. Backends mise supports</a></li>
+<li><a class="reference internal" href="#registry-mapping-ordering-and-user-overrides">2. Registry mapping, ordering and user overrides</a></li>
+<li><a class="reference internal" href="#documented-guidance-for-choosing-among-backends">3. Documented guidance for choosing among backends</a></li>
+<li><a class="reference internal" href="#machine-readable-sources">4. Machine-readable sources</a></li>
+<li><a class="reference internal" href="#open-questions-for-the-design-interview">5. Open questions for the design interview</a></li>
+</ul>
+</div><div id="ethical-ad-placement" data-ea-publisher="readthedocs"></div></div>
+  </aside>
+  <div class="rside-overlay js-menu" role="button" aria-label="Close Table of Contents" aria-controls="rside" aria-expanded="false"></div>
+  <main class="sy-main w-full max-sm:max-w-full print:pt-6">
+<div class="sy-breadcrumbs" role="navigation">
+  <div class="sy-breadcrumbs-inner flex items-center">
+    <div class="md:hidden mr-3">
+      <button class="js-menu" aria-label="Menu" type="button" aria-controls="lside" aria-expanded="false">
+        <i class="i-lucide menu"></i>
+      </button>
+    </div>
+    <ol class="flex-1" itemscope itemtype="https://schema.org/BreadcrumbList"><li itemprop="itemListElement" itemscope itemtype="https://schema.org/ListItem">
+        <a itemprop="item" href="../index.html"><span itemprop="name">mibare</span></a>
+        <span>/</span>
+        <meta itemprop="position" content="1" />
+      </li><li itemprop="itemListElement" itemscope itemtype="https://schema.org/ListItem">
+        <strong itemprop="name">How mise models and chooses backends</strong>
+        <meta itemprop="position" content="2" />
+      </li></ol>
+    <div class="xl:hidden ml-1">
+      <button class="js-menu" aria-label="Show table of contents" type="button" aria-controls="rside"
+        aria-expanded="false">
+        <i class="i-lucide outdent"></i>
+      </button>
+    </div>
+  </div>
+</div><div class="flex flex-col break-words justify-between">
+      <div class="relative min-w-0 max-w-6xl px-6 pb-6 pt-8 xl:px-12">
+  <article class="yue" role="main">
+          <section id="how-mise-models-and-chooses-backends">
+<h1>How mise models and chooses backends<a class="headerlink" href="#how-mise-models-and-chooses-backends" title="Link to this heading">#</a></h1>
+<p>Retrieved 2026-10-18. Source tree: <code class="docutils literal notranslate"><span class="pre">jdx/mise</span></code> at commit <code class="docutils literal notranslate"><span class="pre">2866bb93824ff4d76ada6d453a42d4409074a1fc</span></code> (HEAD of main, 2026-10-18; latest tag <code class="docutils literal notranslate"><span class="pre">v2026.10.14</span></code>, <code class="docutils literal notranslate"><span class="pre">Cargo.toml</span></code> version 2026.10.14). Local mise used for CLI output: 2026.10.13.</p>
+<p>Citation convention: <code class="docutils literal notranslate"><span class="pre">repo:path</span></code> means a file in the jdx/mise clone at the commit above (browsable at <code class="docutils literal notranslate"><span class="pre">https://github.com/jdx/mise/blob/2866bb9/&lt;path&gt;</span></code>). Docs pages are cited by their published URL on mise.jdx.dev. The text was read from the <code class="docutils literal notranslate"><span class="pre">docs/</span></code> source in the same clone, not fetched live from the site. The URL-to-file mapping follows the page links inside the docs themselves, and I did not diff the live site against the clone.</p>
+<section id="summary">
+<h2>Summary<a class="headerlink" href="#summary" title="Link to this heading">#</a></h2>
+<ul class="simple">
+<li><p>mise has about 20 backend types. A backend is a “source to install from”, written as <code class="docutils literal notranslate"><span class="pre">backend:tool[options]</span></code>. The registry maps a short name to an ordered list of such identifiers.</p></li>
+<li><p>Short-name resolution is a fixed precedence chain: <code class="docutils literal notranslate"><span class="pre">MISE_BACKENDS_&lt;TOOL&gt;</span></code>, then <code class="docutils literal notranslate"><span class="pre">[tool_alias]</span></code>, then <code class="docutils literal notranslate"><span class="pre">[plugins]</span></code> URL, then the lockfile, then an installed plugin, then the first eligible registry backend. Eligible means it runs on this platform, is not in <code class="docutils literal notranslate"><span class="pre">disable_backends</span></code>, is not experimental-gated, and covers the requested version.</p></li>
+<li><p>The docs recommend this order: packslip, then aqua, then github/gitlab/forgejo, then http/s3, then language-package backends, then plugins. <code class="docutils literal notranslate"><span class="pre">ubi</span></code> is deprecated (removal in 2027.1.0). <code class="docutils literal notranslate"><span class="pre">asdf</span></code> is legacy and never used on Windows. <code class="docutils literal notranslate"><span class="pre">vfox</span></code> is a plugin backend, and new <code class="docutils literal notranslate"><span class="pre">asdf</span></code>, <code class="docutils literal notranslate"><span class="pre">vfox</span></code> and <code class="docutils literal notranslate"><span class="pre">ubi</span></code> registry entries are rejected.</p></li>
+<li><p>Machine-readable sources: <code class="docutils literal notranslate"><span class="pre">registry/*.toml</span></code> (with a JSON Schema), <code class="docutils literal notranslate"><span class="pre">mise</span> <span class="pre">registry</span> <span class="pre">--json</span></code> (lossy), <code class="docutils literal notranslate"><span class="pre">mise</span> <span class="pre">tool</span> <span class="pre">&lt;name&gt;</span> <span class="pre">--json</span></code> (resolved backend plus security), the hosted <code class="docutils literal notranslate"><span class="pre">https://mise.jdx.dev/registry/latest.tar.zst</span></code> archive, and mise-versions <code class="docutils literal notranslate"><span class="pre">data/&lt;tool&gt;.toml</span></code> and <code class="docutils literal notranslate"><span class="pre">data/index.v1.json</span></code>. None of the hosted ones has a documented stability guarantee, except that mise-versions index.v1 carries a <code class="docutils literal notranslate"><span class="pre">format</span></code> field.</p></li>
+<li><p>Gaps and ambiguities are listed in section 5. The main ones are that the JSON output drops per-backend platforms, version ranges and options, and that the registry order is “preference”, not “quality”.</p></li>
+</ul>
+</section>
+<section id="backends-mise-supports">
+<h2>1. Backends mise supports<a class="headerlink" href="#backends-mise-supports" title="Link to this heading">#</a></h2>
+<p><strong>Enumeration in source.</strong> The <code class="docutils literal notranslate"><span class="pre">BackendType</span></code> enum is: aqua, asdf, cargo, conda, core, dotnet, forgejo, gem, github, gitlab, go, npm, packslip, pipx (displayed and serialized as <code class="docutils literal notranslate"><span class="pre">pypi</span></code>, with <code class="docutils literal notranslate"><span class="pre">pipx</span></code> accepted as an input alias), spinel, spm, http, s3, ubi, vfox, plus <code class="docutils literal notranslate"><span class="pre">VfoxBackend(plugin_name)</span></code> and <code class="docutils literal notranslate"><span class="pre">Unknown</span></code>. (<code class="docutils literal notranslate"><span class="pre">repo:src/backend/backend_type.rs</span></code>)</p>
+<p><strong><code class="docutils literal notranslate"><span class="pre">mise</span> <span class="pre">backends</span> <span class="pre">ls</span></code></strong> printed, on the 2026.10.13 binary: aqua, asdf, cargo, conda, core, dotnet, forgejo, gem, github, gitlab, go, npm, packslip, pypi, spinel, spm, http, s3, ubi, vfox. (local run; verified)</p>
+<p><strong>Syntax.</strong> <code class="docutils literal notranslate"><span class="pre">&lt;backend&gt;:&lt;tool-name-within-backend&gt;[&#64;version]</span></code>, with optional tool options in brackets, for example <code class="docutils literal notranslate"><span class="pre">'pypi:black[extras=jupyter]'</span></code>. Any identifier works in <code class="docutils literal notranslate"><span class="pre">mise.toml</span></code> without a registry entry. The registry only adds short names. Core tools use <code class="docutils literal notranslate"><span class="pre">core:</span></code> (for example <code class="docutils literal notranslate"><span class="pre">core:node</span></code>). Source: <a class="reference external" href="https://mise.jdx.dev/dev-tools/backends/#identifiers">https://mise.jdx.dev/dev-tools/backends/#identifiers</a>s&gt;s&gt;s&gt;s&gt;s&gt;</p>
+<p><strong>Prefix parsing.</strong> <code class="docutils literal notranslate"><span class="pre">BackendType::guess</span></code> takes the text before the first <code class="docutils literal notranslate"><span class="pre">:</span></code> and maps it as above. Anything else is <code class="docutils literal notranslate"><span class="pre">Unknown</span></code>. (<code class="docutils literal notranslate"><span class="pre">repo:src/backend/backend_type.rs</span></code>)</p>
+<p><strong>Experimental gate.</strong> <code class="docutils literal notranslate"><span class="pre">dotnet</span></code>, <code class="docutils literal notranslate"><span class="pre">packslip</span></code>, <code class="docutils literal notranslate"><span class="pre">s3</span></code>, <code class="docutils literal notranslate"><span class="pre">spinel</span></code> and <code class="docutils literal notranslate"><span class="pre">spm</span></code> consult an <code class="docutils literal notranslate"><span class="pre">EXPERIMENTAL</span></code> constant (<code class="docutils literal notranslate"><span class="pre">BackendType::is_experimental</span></code>). Registry-driven selection skips a backend whose constant is true unless <code class="docutils literal notranslate"><span class="pre">experimental</span> <span class="pre">=</span> <span class="pre">true</span></code>. (<code class="docutils literal notranslate"><span class="pre">repo:src/backend/backend_type.rs</span></code>, <code class="docutils literal notranslate"><span class="pre">repo:src/registry.rs</span></code> <code class="docutils literal notranslate"><span class="pre">eligible_entries</span></code>.) The values of those constants are not shown above. The docs list only spinel as “(experimental)”. Which of the five are currently gated is <strong>unverified</strong>.</p>
+<p>Table, from <a class="reference external" href="https://mise.jdx.dev/dev-tools/backends/#which-backend-to-use">https://mise.jdx.dev/dev-tools/backends/#which-backend-to-use</a>e&gt;e&gt;e&gt;e&gt;e&gt; (docs status wording quoted):</p>
+<div class="table-wrapper colwidths-auto docutils container">
+<table class="docutils align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>Backend</p></th>
+<th class="head"><p>Installs</p></th>
+<th class="head"><p>Example</p></th>
+<th class="head"><p>Docs status</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>packslip</p></td>
+<td><p>releases with signed manifests</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">packslip:github.com/jdx/hk</span></code></p></td>
+<td><p>first preference</p></td>
+</tr>
+<tr class="row-odd"><td><p>aqua</p></td>
+<td><p>release assets described by the aqua registry</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">aqua:BurntSushi/ripgrep</span></code></p></td>
+<td><p>preferred</p></td>
+</tr>
+<tr class="row-even"><td><p>github / gitlab / forgejo</p></td>
+<td><p>release assets from a forge</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">github:BurntSushi/ripgrep</span></code></p></td>
+<td><p>preferred (same tier as aqua)</p></td>
+</tr>
+<tr class="row-odd"><td><p>http / s3</p></td>
+<td><p>archives at URLs you provide</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">http:my-tool</span></code> with a <code class="docutils literal notranslate"><span class="pre">url</span></code> option</p></td>
+<td><p>S3 also needs AWS credentials</p></td>
+</tr>
+<tr class="row-even"><td><p>cargo, go, npm, pypi (alias <code class="docutils literal notranslate"><span class="pre">pipx:</span></code>), gem, dotnet, spm</p></td>
+<td><p>language packages</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">cargo:eza</span></code>, <code class="docutils literal notranslate"><span class="pre">npm:prettier</span></code>, <code class="docutils literal notranslate"><span class="pre">pypi:black</span></code>, <code class="docutils literal notranslate"><span class="pre">gem:rubocop</span></code>, <code class="docutils literal notranslate"><span class="pre">dotnet:GitVersion.Tool</span></code>, <code class="docutils literal notranslate"><span class="pre">spm:nicklockwood/SwiftFormat</span></code>, <code class="docutils literal notranslate"><span class="pre">go:github.com/DarthSim/hivemind</span></code></p></td>
+<td><p>needs the language runtime or toolchain</p></td>
+</tr>
+<tr class="row-odd"><td><p>conda</p></td>
+<td><p>conda packages and their dependencies</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">conda:ffmpeg</span></code></p></td>
+<td><p>needs nothing else</p></td>
+</tr>
+<tr class="row-even"><td><p>spinel</p></td>
+<td><p>Ruby compiled to native executables</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">spinel:tobi/try</span></code></p></td>
+<td><p>experimental</p></td>
+</tr>
+<tr class="row-odd"><td><p>vfox</p></td>
+<td><p>Lua plugin</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">vfox:version-fox/vfox-cmake</span></code></p></td>
+<td><p>works on Windows; use when custom logic is needed</p></td>
+</tr>
+<tr class="row-even"><td><p>asdf</p></td>
+<td><p>shell-script plugin</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">asdf:MetricMike/asdf-awscli</span></code></p></td>
+<td><p>legacy; not available on Windows</p></td>
+</tr>
+<tr class="row-odd"><td><p>ubi</p></td>
+<td><p>GitHub and GitLab release assets</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">ubi:BurntSushi/ripgrep</span></code></p></td>
+<td><p>deprecated; removed in 2027.1.0</p></td>
+</tr>
+<tr class="row-even"><td><p>core</p></td>
+<td><p>tools built into mise</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">core:node</span></code></p></td>
+<td><p>see <a class="reference external" href="https://mise.jdx.dev/core-tools.html">https://mise.jdx.dev/core-tools.html</a>l&gt;l&gt;l&gt;l&gt;l&gt;</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>Deprecation and legacy facts:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">ubi:</span></code> has warned since 2026.4.0 and is removed in 2027.1.0. Migration is <code class="docutils literal notranslate"><span class="pre">ubi:</span></code> to <code class="docutils literal notranslate"><span class="pre">github:</span></code>, <code class="docutils literal notranslate"><span class="pre">gitlab:</span></code>, or an <code class="docutils literal notranslate"><span class="pre">http:</span></code> tool. <a class="reference external" href="https://mise.jdx.dev/dev-tools/backends/ubi.html">https://mise.jdx.dev/dev-tools/backends/ubi.html</a>l&gt;l&gt;l&gt;l&gt;l&gt; (<code class="docutils literal notranslate"><span class="pre">repo:docs/dev-tools/backends/ubi.md</span></code>)</p></li>
+<li><p>asdf plugins are “shell scripts that run with your permissions”. The docs say to prefer backends that install a publisher’s release directly. <a class="reference external" href="https://mise.jdx.dev/dev-tools/backends/asdf.html">https://mise.jdx.dev/dev-tools/backends/asdf.html</a>l&gt;l&gt;l&gt;l&gt;l&gt; (<code class="docutils literal notranslate"><span class="pre">repo:docs/dev-tools/backends/asdf.md</span></code>)</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">pipx:</span></code> is another name for <code class="docutils literal notranslate"><span class="pre">pypi:</span></code>, which uses uv, or pipx when uv is unavailable. <a class="reference external" href="https://mise.jdx.dev/dev-tools/backends/pypi.html">https://mise.jdx.dev/dev-tools/backends/pypi.html</a>l&gt;l&gt;l&gt;l&gt;l&gt; (<code class="docutils literal notranslate"><span class="pre">repo:docs/dev-tools/backends/pypi.md</span></code>)</p></li>
+</ul>
+<p><strong>Plugin-provided backends.</strong> A vfox backend plugin supplies its own prefix (<code class="docutils literal notranslate"><span class="pre">VfoxBackend(name)</span></code>), and <code class="docutils literal notranslate"><span class="pre">disable_backends</span></code> can name it. (<code class="docutils literal notranslate"><span class="pre">repo:src/backend/backend_type.rs</span></code> <code class="docutils literal notranslate"><span class="pre">disable_key</span></code>; <code class="docutils literal notranslate"><span class="pre">repo:settings.toml</span></code> <code class="docutils literal notranslate"><span class="pre">[disable_backends]</span></code> docs.) Backend plugin authoring: <a class="reference external" href="https://mise.jdx.dev/backend-plugin-development.html">https://mise.jdx.dev/backend-plugin-development.html</a>l&gt;l&gt;l&gt;l&gt;l&gt;. I did not read that page, so the details of how third-party prefixes interact with the registry are <strong>unverified</strong>.</p>
+</section>
+<section id="registry-mapping-ordering-and-user-overrides">
+<h2>2. Registry mapping, ordering and user overrides<a class="headerlink" href="#registry-mapping-ordering-and-user-overrides" title="Link to this heading">#</a></h2>
+<p><strong>Registry shape.</strong> One file per tool, <code class="docutils literal notranslate"><span class="pre">registry/&lt;name&gt;.toml</span></code>, where the file name is the short name. <code class="docutils literal notranslate"><span class="pre">backends</span></code> is an ordered list of strings or tables, “in order of preference”. <code class="docutils literal notranslate"><span class="pre">version_order</span></code> is required (<code class="docutils literal notranslate"><span class="pre">semver</span></code> or <code class="docutils literal notranslate"><span class="pre">source</span></code>). Source: <a class="reference external" href="https://mise.jdx.dev/contributing/registry.html#registry-format">https://mise.jdx.dev/contributing/registry.html#registry-format</a>t&gt;t&gt;t&gt;t&gt;t&gt; (<code class="docutils literal notranslate"><span class="pre">repo:docs/contributing/registry.md</span></code>) and <code class="docutils literal notranslate"><span class="pre">repo:schema/mise-registry-tool.json</span></code> (<code class="docutils literal notranslate"><span class="pre">required:</span> <span class="pre">[&quot;backends&quot;,</span> <span class="pre">&quot;version_order&quot;]</span></code>).</p>
+<p>Examples at the commit above (<code class="docutils literal notranslate"><span class="pre">repo:registry/</span></code>):</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">jq.toml</span></code>: <code class="docutils literal notranslate"><span class="pre">[&quot;aqua:jqlang/jq&quot;,</span> <span class="pre">&quot;asdf:mise-plugins/asdf-jq&quot;]</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">ripgrep.toml</span></code>: <code class="docutils literal notranslate"><span class="pre">aliases</span> <span class="pre">=</span> <span class="pre">[&quot;rg&quot;]</span></code>, backends <code class="docutils literal notranslate"><span class="pre">[&quot;aqua:BurntSushi/ripgrep&quot;,</span> <span class="pre">&quot;asdf:https://gitlab.com/wt0f/asdf-ripgrep&quot;,</span> <span class="pre">&quot;cargo:ripgrep&quot;]</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">node.toml</span></code>: <code class="docutils literal notranslate"><span class="pre">[&quot;core:node&quot;]</span></code>, with <code class="docutils literal notranslate"><span class="pre">bins</span></code>, <code class="docutils literal notranslate"><span class="pre">detect</span></code> and <code class="docutils literal notranslate"><span class="pre">idiomatic_files</span></code></p></li>
+</ul>
+<p><strong>Size and distribution</strong> (computed from <code class="docutils literal notranslate"><span class="pre">mise</span> <span class="pre">registry</span> <span class="pre">--json</span></code> on 2026.10.13). 1067 rows, which include aliases as their own rows, and 1015 <code class="docutils literal notranslate"><span class="pre">registry/*.toml</span></code> files in the repo. 756 rows have more than one backend. Backend frequency across all lists: aqua 716, asdf 622, github 254, cargo 89, vfox 58, npm 55, pypi 32, go 25, conda 22, http 18, packslip 14, core 14, gem 3, spm 2, gitlab 1. Backend in first position: aqua 699, github 188, vfox 42, npm 41, pypi 23, conda 20, http 16, packslip 14, core 14, go 4, gem 3, spm 1, gitlab 1, cargo 1. These counts are a point-in-time computation and the registry changes with every release.</p>
+<p><strong>Per-backend entry fields</strong> (<code class="docutils literal notranslate"><span class="pre">RegistryBackend</span></code>, <code class="docutils literal notranslate"><span class="pre">repo:src/registry.rs</span></code>; <code class="docutils literal notranslate"><span class="pre">repo:schema/mise-registry-tool.json</span></code>): <code class="docutils literal notranslate"><span class="pre">full</span></code>, <code class="docutils literal notranslate"><span class="pre">platforms</span></code> (<code class="docutils literal notranslate"><span class="pre">linux</span></code>/<code class="docutils literal notranslate"><span class="pre">macos</span></code>/<code class="docutils literal notranslate"><span class="pre">windows</span></code>, <code class="docutils literal notranslate"><span class="pre">x64</span></code>/<code class="docutils literal notranslate"><span class="pre">arm64</span></code>, or <code class="docutils literal notranslate"><span class="pre">os-arch</span></code>; Windows arm64 also matches x64 selectors), <code class="docutils literal notranslate"><span class="pre">min_version</span></code> (inclusive), <code class="docutils literal notranslate"><span class="pre">max_version</span></code> (exclusive), <code class="docutils literal notranslate"><span class="pre">attestations_since</span></code>, <code class="docutils literal notranslate"><span class="pre">options</span></code>. Bounds require <code class="docutils literal notranslate"><span class="pre">version_order</span> <span class="pre">=</span> <span class="pre">&quot;semver&quot;</span></code>. Source: <a class="reference external" href="https://mise.jdx.dev/contributing/registry.html#backend-entries">https://mise.jdx.dev/contributing/registry.html#backend-entries</a>s&gt;s&gt;s&gt;s&gt;s&gt; and #minimum-backend-versions. In the clone, 35 files use <code class="docutils literal notranslate"><span class="pre">platforms</span></code>, 17 use <code class="docutils literal notranslate"><span class="pre">min_version</span></code> or <code class="docutils literal notranslate"><span class="pre">max_version</span></code>, and 7 use <code class="docutils literal notranslate"><span class="pre">deprecated</span></code>. These come from <code class="docutils literal notranslate"><span class="pre">grep</span> <span class="pre">-l</span></code> over <code class="docutils literal notranslate"><span class="pre">registry/*.toml</span></code>.</p>
+<p><strong>Tool-level fields:</strong> <code class="docutils literal notranslate"><span class="pre">aliases</span></code>, <code class="docutils literal notranslate"><span class="pre">bins</span></code>, <code class="docutils literal notranslate"><span class="pre">description</span></code>, <code class="docutils literal notranslate"><span class="pre">detect</span></code>, <code class="docutils literal notranslate"><span class="pre">idiomatic_files</span></code>, <code class="docutils literal notranslate"><span class="pre">os</span></code>, <code class="docutils literal notranslate"><span class="pre">overrides</span></code>, <code class="docutils literal notranslate"><span class="pre">test</span></code>, <code class="docutils literal notranslate"><span class="pre">url</span></code>, <code class="docutils literal notranslate"><span class="pre">deprecated</span></code>, <code class="docutils literal notranslate"><span class="pre">version_order</span></code>.</p>
+<p><strong>Selection order for a short name</strong> (<a class="reference external" href="https://mise.jdx.dev/dev-tools/backends/#how-backend-selection-works">https://mise.jdx.dev/dev-tools/backends/#how-backend-selection-works</a>s&gt;s&gt;s&gt;s&gt;s&gt;). An identifier with a prefix always uses that backend. Otherwise the first of these applies:</p>
+<ol class="arabic simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">MISE_BACKENDS_&lt;TOOL&gt;</span></code> environment variable (tool name uppercased, <code class="docutils literal notranslate"><span class="pre">-</span></code> to <code class="docutils literal notranslate"><span class="pre">_</span></code>; <code class="docutils literal notranslate"><span class="pre">repo:src/registry.rs</span></code> <code class="docutils literal notranslate"><span class="pre">env_backend_override</span></code>).</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">[tool_alias]</span></code> entry naming a backend, such as <code class="docutils literal notranslate"><span class="pre">node</span> <span class="pre">=</span> <span class="pre">&quot;core:node&quot;</span></code> (<a class="reference external" href="https://mise.jdx.dev/dev-tools/aliases.html">https://mise.jdx.dev/dev-tools/aliases.html</a>l&gt;l&gt;l&gt;l&gt;l&gt;).</p></li>
+<li><p>A plugin URL for the tool under <code class="docutils literal notranslate"><span class="pre">[plugins]</span></code>.</p></li>
+<li><p>The backend recorded in <code class="docutils literal notranslate"><span class="pre">mise.lock</span></code>, when it can serve the requested version.</p></li>
+<li><p>An installed plugin with the same name, unless its backend is disabled.</p></li>
+<li><p>The first registry backend that runs on this platform, is not in <code class="docutils literal notranslate"><span class="pre">disable_backends</span></code>, supports the requested version, and, if experimental, only with <code class="docutils literal notranslate"><span class="pre">experimental</span> <span class="pre">=</span> <span class="pre">true</span></code>.</p></li>
+</ol>
+<p><strong>Code check of step 6.</strong> <code class="docutils literal notranslate"><span class="pre">eligible_entries</span></code> in <code class="docutils literal notranslate"><span class="pre">repo:src/registry.rs</span></code> filters in registry order by: <code class="docutils literal notranslate"><span class="pre">keep</span></code>, then <code class="docutils literal notranslate"><span class="pre">backend_matches_platform</span></code>, then membership in the set of all <code class="docutils literal notranslate"><span class="pre">BackendType</span></code> names minus <code class="docutils literal notranslate"><span class="pre">Settings.disable_backends</span></code> (and minus <code class="docutils literal notranslate"><span class="pre">asdf</span></code> on Windows, hard-coded, “whatever this setting says”), then the experimental gate. Duplicates are collapsed to the first position.</p>
+<p><strong>Version-specific selection.</strong> Entries with <code class="docutils literal notranslate"><span class="pre">min_version</span></code> or <code class="docutils literal notranslate"><span class="pre">max_version</span></code> are checked against the request. Exact versions are compared, and numeric prefixes are excluded only when wholly outside the range. <code class="docutils literal notranslate"><span class="pre">latest</span></code> and prefixes that span a boundary “keep the normal order”. These boundaries apply only to short names. An explicit identifier ignores them. A failed download or signature check does not fall back to the next backend. Source: <a class="reference external" href="https://mise.jdx.dev/dev-tools/backends/#version-specific-backends">https://mise.jdx.dev/dev-tools/backends/#version-specific-backends</a>s&gt;s&gt;s<a class="reference external" href="https://mise.jdx.dev/contributing/registry.html#minimum-backend-versions">https://mise.jdx.dev/contributing/registry.html#minimum-backend-versions</a>ons&gt;ons&gt;ons&gt;ons&gt;ons&gt;. Code: <code class="docutils literal notranslate"><span class="pre">RegistryBackend::supports_version</span></code> in <code class="docutils literal notranslate"><span class="pre">repo:src/registry.rs</span></code>.</p>
+<p><strong>Settings that alter resolution:</strong></p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">disable_backends</span></code> (env <code class="docutils literal notranslate"><span class="pre">MISE_DISABLE_BACKENDS</span></code>, comma list; default <code class="docutils literal notranslate"><span class="pre">[]</span></code>). Disabled backends are skipped for short names, and installing an explicit identifier on one fails. Already-installed versions stay on disk. A vfox plugin can be disabled by plugin name. <code class="docutils literal notranslate"><span class="pre">repo:settings.toml</span></code> <code class="docutils literal notranslate"><span class="pre">[disable_backends]</span></code>; <a class="reference external" href="https://mise.jdx.dev/dev-tools/backends/#disable-backends">https://mise.jdx.dev/dev-tools/backends/#disable-backends</a>s&gt;s&gt;s&gt;s&gt;s&gt;</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">disable_default_registry</span></code> (<code class="docutils literal notranslate"><span class="pre">MISE_DISABLE_DEFAULT_REGISTRY</span></code>): “Stop mapping short names such as <code class="docutils literal notranslate"><span class="pre">php</span></code> to the asdf and vfox plugins listed in the registry.” The wording is narrow. I did not trace what it does to the other backends in the registry, so the exact semantics are <strong>unverified</strong>. <code class="docutils literal notranslate"><span class="pre">repo:settings.toml</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">experimental</span></code> (gates experimental backends).</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">registry_floating</span></code> (default off), <code class="docutils literal notranslate"><span class="pre">registry_cache_ttl</span></code>, <code class="docutils literal notranslate"><span class="pre">aqua.baked_registry</span></code>, <code class="docutils literal notranslate"><span class="pre">aqua.registries</span></code>, <code class="docutils literal notranslate"><span class="pre">aqua.registry_cache_ttl</span></code>. See section 4.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">MISE_BACKENDS_&lt;TOOL&gt;</span></code> and <code class="docutils literal notranslate"><span class="pre">[tool_alias]</span></code>, as above.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">mise</span> <span class="pre">use</span></code> writes the identifier to <code class="docutils literal notranslate"><span class="pre">[tools]</span></code> as given, for example <code class="docutils literal notranslate"><span class="pre">&quot;aqua:BurntSushi/ripgrep&quot;</span> <span class="pre">=</span> <span class="pre">&quot;latest&quot;</span></code>, so using the short name stores the short name and re-resolves through the chain above. <code class="docutils literal notranslate"><span class="pre">mise</span> <span class="pre">backends</span> <span class="pre">switch</span></code> rewrites lock entries to the registry’s current backend. <a class="reference external" href="https://mise.jdx.dev/dev-tools/backends/">https://mise.jdx.dev/dev-tools/backends/</a>/&gt;/&gt;/<a class="reference external" href="https://mise.jdx.dev/cli/backends/switch.html">https://mise.jdx.dev/cli/backends/switch.html</a>tml&gt;tml&gt;tml&gt;tml&gt;tml&gt;. I did not read the <code class="docutils literal notranslate"><span class="pre">mise</span> <span class="pre">use</span></code> source to confirm that it never rewrites a short name into an identifier. That is <strong>unverified</strong> beyond the docs example.</p></li>
+</ul>
+<p><strong>Options attached to a short name.</strong> A shorthand can set backend options. The docs’ example is <code class="docutils literal notranslate"><span class="pre">aws-cli</span></code>, which uses <code class="docutils literal notranslate"><span class="pre">aqua:aws/aws-cli</span></code> with <code class="docutils literal notranslate"><span class="pre">symlink_bins</span> <span class="pre">=</span> <span class="pre">true</span></code>. Writing the identifier yourself does not apply those options, so short name and identifier are not equivalent. <a class="reference external" href="https://mise.jdx.dev/registry.html#options-a-shorthand-sets">https://mise.jdx.dev/registry.html#options-a-shorthand-sets</a>s&gt;s&gt;s&gt;s&gt;s&gt;</p>
+<p><strong>Debug commands:</strong> <code class="docutils literal notranslate"><span class="pre">mise</span> <span class="pre">tool</span> <span class="pre">&lt;name&gt;</span> <span class="pre">--backend</span></code>, <code class="docutils literal notranslate"><span class="pre">mise</span> <span class="pre">registry</span> <span class="pre">&lt;name&gt;</span></code>, <code class="docutils literal notranslate"><span class="pre">mise</span> <span class="pre">plugins</span> <span class="pre">ls</span></code>, <code class="docutils literal notranslate"><span class="pre">mise</span> <span class="pre">config</span> <span class="pre">ls</span></code>, <code class="docutils literal notranslate"><span class="pre">mise</span> <span class="pre">ls</span> <span class="pre">--current</span></code>. <a class="reference external" href="https://mise.jdx.dev/dev-tools/backends/#troubleshooting">https://mise.jdx.dev/dev-tools/backends/#troubleshooting</a>g&gt;g&gt;g&gt;g&gt;g&gt;. Local check: <code class="docutils literal notranslate"><span class="pre">mise</span> <span class="pre">tool</span> <span class="pre">ripgrep</span> <span class="pre">--backend</span></code> printed <code class="docutils literal notranslate"><span class="pre">aqua:BurntSushi/ripgrep</span></code>.</p>
+</section>
+<section id="documented-guidance-for-choosing-among-backends">
+<h2>3. Documented guidance for choosing among backends<a class="headerlink" href="#documented-guidance-for-choosing-among-backends" title="Link to this heading">#</a></h2>
+<ul class="simple">
+<li><p><strong>Preference ladder.</strong> “Start with the tool’s registry short name. When you choose a backend yourself, prefer one that installs the publisher’s own prebuilt release”, ordered: (1) packslip, (2) aqua, or github, gitlab, forgejo, (3) http, s3, (4) language package backend, when the tool ships only as a package or you need package options, (5) a plugin only when custom logic is needed. <a class="reference external" href="https://mise.jdx.dev/dev-tools/backends/#which-backend-to-use">https://mise.jdx.dev/dev-tools/backends/#which-backend-to-use</a>e&gt;e&gt;e&gt;e&gt;e&gt;</p></li>
+<li><p><strong>Registry acceptance tiers</strong> (for new entries only, “you can use any backend in your own config”): tier 1 packslip. Tier 2 aqua, github, gitlab. Tier 3 conda (“high bar”). Tier 4 npm, pypi, gem, cargo, go, dotnet (“very high bar”, needs maintainer agreement beforehand). Not accepted for new entries: asdf, vfox, ubi, “for supply-chain security reasons”. http is untiered and accepted only with a <code class="docutils literal notranslate"><span class="pre">version_list_url</span></code>. forgejo, s3, spm and spinel are not covered by the tiers. <a class="reference external" href="https://mise.jdx.dev/contributing/registry.html#backend-acceptance-tiers">https://mise.jdx.dev/contributing/registry.html#backend-acceptance-tiers</a>s&gt;s&gt;s&gt;s&gt;s&gt;</p></li>
+<li><p><strong>aqua over github when the tool is in the aqua registry.</strong> “its recipes carry per-version logic and SLSA and other verification metadata”. Use github for tools not in aqua but with GitHub releases. Same page.</p></li>
+<li><p><strong>Go and Rust tools</strong> “usually ship single binaries, so prefer a tier 1 or 2 backend for them”. Same page.</p></li>
+<li><p><strong>Windows.</strong> aqua “works on Windows”. asdf is never selected on Windows, and <code class="docutils literal notranslate"><span class="pre">asdf:</span></code> tools are skipped. vfox runs on Windows. <a class="reference external" href="https://mise.jdx.dev/dev-tools/backends/aqua.html">https://mise.jdx.dev/dev-tools/backends/aqua.html</a>l&gt;<a class="reference external" href="https://mise.jdx.dev/dev-tools/backends/asdf.html">https://mise.jdx.dev/dev-tools/backends/asdf.html</a>tm<a class="reference external" href="https://mise.jdx.dev/dev-tools/backends/vfox.html">https://mise.jdx.dev/dev-tools/backends/vfox.html</a>.html&gt;.html&gt;.html&gt;.html&gt;.html&gt;. No explicit Windows statement was found for github, gitlab, http, npm, cargo, pypi or conda, so their status is <strong>unverified</strong>.</p></li>
+<li><p><strong>Security and verification.</strong> “Verification differs by backend and by tool”, and a backend can check a signature or provenance only when the publisher provides one. Checks per backend (<a class="reference external" href="https://mise.jdx.dev/security.html#download-verification">https://mise.jdx.dev/security.html#download-verification</a>n&gt;n&gt;n&gt;n&gt;n&gt;): aqua gives checksums, Cosign, Minisign, SLSA and GitHub attestations as declared by the aqua recipe. github gives GitHub attestations when published, and SLSA when a signer is named. packslip gives a signed manifest, digests and a pinned signer. Node, Swift, Zig and precompiled Ruby and Python have their own checks. The page lists no checks for http, s3, cargo, npm, pypi, go, gem, conda or dotnet, which most naturally reads as “none documented”, but that is an inference and <strong>unverified</strong>. Per-tool results are visible via <code class="docutils literal notranslate"><span class="pre">mise</span> <span class="pre">tool</span> <span class="pre">&lt;name&gt;</span></code> (Security line) and <code class="docutils literal notranslate"><span class="pre">mise</span> <span class="pre">registry</span> <span class="pre">--json</span> <span class="pre">--security</span></code>.</p></li>
+<li><p><strong>Provenance can be required.</strong> A registry entry can set <code class="docutils literal notranslate"><span class="pre">attestations_since</span></code>, from which version a missing GitHub attestation is treated as a downgrade (github backends only). <code class="docutils literal notranslate"><span class="pre">repo:schema/mise-registry-tool.json</span></code>, <code class="docutils literal notranslate"><span class="pre">repo:src/registry.rs</span></code>.</p></li>
+<li><p><strong>Speed.</strong> I found no documented per-backend speed ranking. The docs only note that language backends need their toolchain, that cargo uses cargo-binstall for prebuilt binaries, and that <code class="docutils literal notranslate"><span class="pre">mise</span> <span class="pre">registry</span> <span class="pre">--json</span> <span class="pre">--security</span></code> is slow for a full listing. The speed question is <strong>unverified or undocumented</strong>. mise-versions exists to avoid GitHub’s anonymous rate limit (<code class="docutils literal notranslate"><span class="pre">repo:settings.toml</span></code> <code class="docutils literal notranslate"><span class="pre">[use_versions_host]</span></code>), which affects version listing, not install speed.</p></li>
+<li><p><strong>aqua vs ubi vs asdf.</strong> The docs steer away from ubi (deprecated) and asdf (legacy, shell code, not Windows). The registry’s own data still has many asdf entries (622 backend occurrences, always as non-first fallbacks per <code class="docutils literal notranslate"><span class="pre">mise</span> <span class="pre">registry</span></code> order in the sampled tools). I did not check that asdf is never first. In the counted data, asdf is not among the first-position counts.</p></li>
+</ul>
+</section>
+<section id="machine-readable-sources">
+<h2>4. Machine-readable sources<a class="headerlink" href="#machine-readable-sources" title="Link to this heading">#</a></h2>
+<ol class="arabic simple">
+<li><p><strong><code class="docutils literal notranslate"><span class="pre">registry/*.toml</span></code> in jdx/mise.</strong> The authoritative source, bundled into each release. The schema is <code class="docutils literal notranslate"><span class="pre">schema/mise-registry-tool.json</span></code> (JSON Schema, <code class="docutils literal notranslate"><span class="pre">unevaluatedProperties:</span> <span class="pre">false</span></code>; <code class="docutils literal notranslate"><span class="pre">required:</span> <span class="pre">backends,</span> <span class="pre">version_order</span></code>; backend table keys <code class="docutils literal notranslate"><span class="pre">full</span></code>, <code class="docutils literal notranslate"><span class="pre">platforms</span></code>, <code class="docutils literal notranslate"><span class="pre">min_version</span></code>, <code class="docutils literal notranslate"><span class="pre">max_version</span></code>, <code class="docutils literal notranslate"><span class="pre">attestations_since</span></code>, <code class="docutils literal notranslate"><span class="pre">options</span></code>). <code class="docutils literal notranslate"><span class="pre">mise</span> <span class="pre">run</span> <span class="pre">lint</span></code> validates files against it, and the build fails on unreadable entries. <a class="reference external" href="https://mise.jdx.dev/registry.html">https://mise.jdx.dev/registry.html</a>l&gt;<a class="reference external" href="https://mise.jdx.dev/contributing/registry.html#registry-format">https://mise.jdx.dev/contributing/registry.html#registry-format</a>mat&gt;mat&gt;mat&gt;mat&gt;mat&gt;. Stability: the schema is versionless, in-repo and changes with mise. No compatibility promise is documented (<strong>unverified</strong> beyond that).</p></li>
+<li><p><strong><code class="docutils literal notranslate"><span class="pre">mise</span> <span class="pre">registry</span> <span class="pre">--json</span></code>.</strong> Rows have <code class="docutils literal notranslate"><span class="pre">short</span></code>, <code class="docutils literal notranslate"><span class="pre">backends</span></code> (strings only, in preference order), <code class="docutils literal notranslate"><span class="pre">bins</span></code>, <code class="docutils literal notranslate"><span class="pre">description</span></code>, <code class="docutils literal notranslate"><span class="pre">url</span></code>, <code class="docutils literal notranslate"><span class="pre">aliases</span></code>, and <code class="docutils literal notranslate"><span class="pre">security</span></code> (only with <code class="docutils literal notranslate"><span class="pre">--security</span></code>, which requires <code class="docutils literal notranslate"><span class="pre">--json</span></code>). Optional fields are omitted when empty. <code class="docutils literal notranslate"><span class="pre">mise</span> <span class="pre">registry</span> <span class="pre">&lt;name&gt;</span> <span class="pre">--json</span></code> gives one object, and <code class="docutils literal notranslate"><span class="pre">mise</span> <span class="pre">registry</span> <span class="pre">--backend</span> <span class="pre">&lt;b&gt;</span></code> filters. Source: <code class="docutils literal notranslate"><span class="pre">repo:src/cli/registry.rs</span></code> (<code class="docutils literal notranslate"><span class="pre">RegistryToolOutput</span></code>) and <a class="reference external" href="https://mise.jdx.dev/cli/registry.html">https://mise.jdx.dev/cli/registry.html</a>l&gt;l&gt;l&gt;l&gt;l&gt;. Observed on 2026.10.13: aliases appear as separate rows, with the full alias list repeated on each. A resolver should dedupe by <code class="docutils literal notranslate"><span class="pre">short</span></code> against <code class="docutils literal notranslate"><span class="pre">aliases</span></code> or use <code class="docutils literal notranslate"><span class="pre">--hide-aliased</span></code> (a flag, though I did not test it with <code class="docutils literal notranslate"><span class="pre">--json</span></code>). The output is lossy: it does <strong>not</strong> include per-backend <code class="docutils literal notranslate"><span class="pre">platforms</span></code>, <code class="docutils literal notranslate"><span class="pre">min_version</span></code>, <code class="docutils literal notranslate"><span class="pre">max_version</span></code>, <code class="docutils literal notranslate"><span class="pre">options</span></code>, <code class="docutils literal notranslate"><span class="pre">os</span></code>, <code class="docutils literal notranslate"><span class="pre">deprecated</span></code>, <code class="docutils literal notranslate"><span class="pre">version_order</span></code>, <code class="docutils literal notranslate"><span class="pre">overrides</span></code> or <code class="docutils literal notranslate"><span class="pre">detect</span></code>. Note also that <code class="docutils literal notranslate"><span class="pre">rt.backends()</span></code> is the already-filtered view, so the CLI list reflects the local platform and settings. The code at <code class="docutils literal notranslate"><span class="pre">src/registry.rs:816</span></code> suggests this, but I did not read the function body, so this is <strong>unverified</strong>. If so, <code class="docutils literal notranslate"><span class="pre">mise</span> <span class="pre">registry</span> <span class="pre">--json</span></code> depends on the machine that runs it (OS, <code class="docutils literal notranslate"><span class="pre">disable_backends</span></code>, <code class="docutils literal notranslate"><span class="pre">experimental</span></code>).</p></li>
+<li><p><strong><code class="docutils literal notranslate"><span class="pre">mise</span> <span class="pre">tool</span> <span class="pre">&lt;name&gt;</span> <span class="pre">--json</span></code>.</strong> Gives the resolved <code class="docutils literal notranslate"><span class="pre">backend</span></code> for this machine and config, plus <code class="docutils literal notranslate"><span class="pre">description</span></code>, <code class="docutils literal notranslate"><span class="pre">url</span></code>, installed and requested versions, <code class="docutils literal notranslate"><span class="pre">tool_options</span></code>, and <code class="docutils literal notranslate"><span class="pre">security</span></code> entries (for example <code class="docutils literal notranslate"><span class="pre">{&quot;type&quot;:&quot;checksum&quot;,&quot;algorithm&quot;:&quot;sha256&quot;}</span></code> and <code class="docutils literal notranslate"><span class="pre">{&quot;type&quot;:&quot;github_attestations&quot;,&quot;signer_workflow&quot;:&quot;...&quot;}</span></code>). Local run, jq, 2026.10.13. This is the ground truth for “what would mise pick here”, but it needs a mise binary.</p></li>
+<li><p><strong>Hosted registry archive.</strong> <code class="docutils literal notranslate"><span class="pre">https://mise.jdx.dev/registry/latest.tar.zst</span></code> (HTTP 200, 94,279 bytes on 2026-10-18). It contains <code class="docutils literal notranslate"><span class="pre">registry/&lt;name&gt;.toml</span></code> files. mise downloads it only when <code class="docutils literal notranslate"><span class="pre">registry_floating</span> <span class="pre">=</span> <span class="pre">true</span></code>. mise caps entries at 4096, 1 MiB per entry and 16 MiB total, and requires version-order metadata. <code class="docutils literal notranslate"><span class="pre">repo:src/registry.rs</span></code> (<code class="docutils literal notranslate"><span class="pre">MISE_REGISTRY_ARCHIVE_URL</span></code>, <code class="docutils literal notranslate"><span class="pre">parse_registry_archive</span></code>), <a class="reference external" href="https://mise.jdx.dev/registry.html#floating-registries">https://mise.jdx.dev/registry.html#floating-registries</a>s&gt;s&gt;s&gt;s&gt;s&gt;. This is the best hosted, no-binary source. The URL is hard-coded in the client but not documented as a public API, so its stability is <strong>unverified</strong>. <code class="docutils literal notranslate"><span class="pre">https://mise.jdx.dev/registry.json</span></code> returned 404, so no hosted registry JSON exists at that path.</p></li>
+<li><p><strong>Bundled aqua registry.</strong> <code class="docutils literal notranslate"><span class="pre">vendor/aqua-registry/registry.yml</span></code> (about 2,147 <code class="docutils literal notranslate"><span class="pre">-</span> <span class="pre">type:</span></code> lines) plus <code class="docutils literal notranslate"><span class="pre">metadata.json</span></code> pinning <code class="docutils literal notranslate"><span class="pre">aquaproj/aqua-registry</span></code> at tag <code class="docutils literal notranslate"><span class="pre">56d6f7647505550d2f47dbed308b676085302db5</span></code>. mise reads recipes for <code class="docutils literal notranslate"><span class="pre">aqua:</span></code> and does verification and platform checks from <code class="docutils literal notranslate"><span class="pre">supported_envs</span></code>. <a class="reference external" href="https://mise.jdx.dev/dev-tools/backends/aqua.html">https://mise.jdx.dev/dev-tools/backends/aqua.html</a>l&gt;l&gt;l&gt;l&gt;l&gt;. The upstream is <code class="docutils literal notranslate"><span class="pre">https://github.com/aquaproj/aqua-registry</span></code>. I did not read the upstream aqua docs for its schema and stability, so those are <strong>unverified</strong>. Users can add registries via <code class="docutils literal notranslate"><span class="pre">aqua.registries</span></code>, and <code class="docutils literal notranslate"><span class="pre">registry_floating</span></code> also fetches the current official one. <code class="docutils literal notranslate"><span class="pre">repo:settings.toml</span></code> <code class="docutils literal notranslate"><span class="pre">[aqua.registries]</span></code>.</p></li>
+<li><p><strong>mise-versions (<code class="docutils literal notranslate"><span class="pre">https://mise-versions.jdx.dev</span></code>).</strong> Used by mise for version lists, public GitHub release data and attestations. <code class="docutils literal notranslate"><span class="pre">repo:src/versions_host.rs</span></code> shows <code class="docutils literal notranslate"><span class="pre">/data/&lt;tool&gt;.toml</span></code> (a <code class="docutils literal notranslate"><span class="pre">[versions]</span></code> table of version to <code class="docutils literal notranslate"><span class="pre">{created_at,</span> <span class="pre">prerelease?}</span></code>) and <code class="docutils literal notranslate"><span class="pre">/t?tool=...</span></code> (an install tracking beacon, not a data API). <code class="docutils literal notranslate"><span class="pre">repo:src/versions_index.rs</span></code> shows <code class="docutils literal notranslate"><span class="pre">/data/index.v1.json</span></code> with a <code class="docutils literal notranslate"><span class="pre">format</span></code> header (client accepts only 1), about 140 KB compressed per its comments, and a contract in <code class="docutils literal notranslate"><span class="pre">docs/versions-index.md</span></code> of jdx/mise-versions (not read). <code class="docutils literal notranslate"><span class="pre">data/node.toml</span></code> returned 200 on 2026-10-18. <code class="docutils literal notranslate"><span class="pre">/api/</span></code> returned 404. This is version data, not backend-resolution data. It is useful for “does this backend list versions”, but mise-versions is keyed by tool short name, and I did not verify per-backend coverage. The <code class="docutils literal notranslate"><span class="pre">use_versions_host</span></code> setting controls it. <code class="docutils literal notranslate"><span class="pre">repo:settings.toml</span></code>. Docs also say it carries security information per tool. <a class="reference external" href="https://mise.jdx.dev/registry.html#tools">https://mise.jdx.dev/registry.html#tools</a>s&gt;s&gt;s&gt;s&gt;s&gt;. How to query that is <strong>unverified</strong>.</p></li>
+<li><p><strong>Docs registry page data.</strong> <code class="docutils literal notranslate"><span class="pre">docs/registry.data.ts</span></code> and the <code class="docutils literal notranslate"><span class="pre">Registry</span></code> Vue component build <a class="reference external" href="https://mise.jdx.dev/registry.html">https://mise.jdx.dev/registry.html</a>l&gt;l&gt;l&gt;l&gt;l&gt;. I did not inspect whether they expose a JSON file, so that is <strong>unverified</strong>.</p></li>
+</ol>
+</section>
+<section id="open-questions-for-the-design-interview">
+<h2>5. Open questions for the design interview<a class="headerlink" href="#open-questions-for-the-design-interview" title="Link to this heading">#</a></h2>
+<ol class="arabic simple">
+<li><p><strong>What does “resolve” return?</strong> Options are: (a) mise’s own pick (<code class="docutils literal notranslate"><span class="pre">mise</span> <span class="pre">tool</span> <span class="pre">--backend</span></code> semantics, reproduce the six-step chain), (b) the registry’s preference list, or (c) a recommendation with reasons (security, platform). The docs’ ladder (packslip, aqua, forge, …) differs from the raw registry order in some entries, because older entries put vfox or asdf first (42 first-position vfox entries exist) and 1 puts cargo first.</p></li>
+<li><p><strong>Should mibare follow mise’s order or re-rank?</strong> The registry order is a curated “preference”, but it carries legacy entries. Should the resolver apply the documented tiers on top and warn on asdf, vfox and ubi?</p></li>
+<li><p><strong>Inputs beyond short names.</strong> Handle user-supplied <code class="docutils literal notranslate"><span class="pre">owner/repo</span></code>, URLs, package names (<code class="docutils literal notranslate"><span class="pre">npm:</span></code>, <code class="docutils literal notranslate"><span class="pre">pypi:</span></code>), aliases such as <code class="docutils literal notranslate"><span class="pre">rg</span></code>, and tools missing from the registry (fall back to aqua registry lookup, then github)? The registry is explicitly “not a list of every tool mise can install”, while the aqua registry has far more recipes.</p></li>
+<li><p><strong>Platform and config context.</strong> Selection depends on OS and arch, <code class="docutils literal notranslate"><span class="pre">disable_backends</span></code>, <code class="docutils literal notranslate"><span class="pre">experimental</span></code>, version request, lockfile, aliases and env overrides. Should mibare take a target platform and settings as input, or ignore them? Hard-coded rule: asdf is excluded on Windows.</p></li>
+<li><p><strong>Data source choice and freshness.</strong> Bundle a registry snapshot, fetch <code class="docutils literal notranslate"><span class="pre">latest.tar.zst</span></code> (undocumented URL, but used by mise itself), shell out to <code class="docutils literal notranslate"><span class="pre">mise</span> <span class="pre">registry</span> <span class="pre">--json</span></code> (lossy and machine-dependent), or read the git repo? Pinning to a mise version matters because the schema evolves (for example <code class="docutils literal notranslate"><span class="pre">min_version</span></code>, <code class="docutils literal notranslate"><span class="pre">max_version</span></code> and <code class="docutils literal notranslate"><span class="pre">attestations_since</span></code> are recent).</p></li>
+<li><p><strong>Version-range-dependent backends.</strong> The JSON CLI hides <code class="docutils literal notranslate"><span class="pre">min_version</span></code> and <code class="docutils literal notranslate"><span class="pre">max_version</span></code>. If the resolver must answer “for <code class="docutils literal notranslate"><span class="pre">hk&#64;1.57</span></code> which backend?”, it needs the TOML, not the JSON.</p></li>
+<li><p><strong>Short name vs identifier equivalence.</strong> Registry options (<code class="docutils literal notranslate"><span class="pre">symlink_bins</span></code>, <code class="docutils literal notranslate"><span class="pre">allow_builds</span></code>, per-platform URLs) are only applied via the short name. Should the output include the options and the short name, or only the identifier?</p></li>
+<li><p><strong>Security data.</strong> <code class="docutils literal notranslate"><span class="pre">mise</span> <span class="pre">tool</span> <span class="pre">--json</span></code> and <code class="docutils literal notranslate"><span class="pre">registry</span> <span class="pre">--json</span> <span class="pre">--security</span></code> expose checks per backend, but only through a binary, and “badges come from registry metadata, so a check may apply only to some versions or platforms”. How much of this should mibare surface, and should it rank by it?</p></li>
+<li><p><strong>Deprecation timeline.</strong> ubi removal in mise 2027.1.0. The registry still contains <code class="docutils literal notranslate"><span class="pre">ubi:</span></code> entries? I did not count them: the <code class="docutils literal notranslate"><span class="pre">ubi</span></code> prefix does not appear in the counted backend list, so possibly none remain. That is consistent with the data, but it is an inference from absence in one run.</p></li>
+<li><p><strong>Unverified items worth confirming:</strong> which backends are currently experimental-gated; exact semantics of <code class="docutils literal notranslate"><span class="pre">disable_default_registry</span></code>; third-party backend plugin prefixes in the registry; speed guidance (none found); <code class="docutils literal notranslate"><span class="pre">mise</span> <span class="pre">use</span></code> writing a short name vs identifier; stability promises for <code class="docutils literal notranslate"><span class="pre">latest.tar.zst</span></code>, <code class="docutils literal notranslate"><span class="pre">mise</span> <span class="pre">registry</span> <span class="pre">--json</span></code> and mise-versions endpoints; Windows status for non-aqua/asdf/vfox backends.</p></li>
+</ol>
+</section>
+</section>
+
+        </article><button class="back-to-top" type="button">
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+    <path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8v12z"></path>
+  </svg>
+  <span>Back to top</span>
+</button><div class="navigation flex print:hidden"><div class="navigation-prev">
+    <a href="../adr/0003-single-python-version.html">
+      <i class="i-lucide chevron-left"></i>
+      <div class="page-info">
+        <span>Previous</span><div class="title">Target a single Python version</div></div>
+    </a>
+  </div></div></div>
+    </div>
+  </main>
+</div>
+<footer class="sy-foot">
+  <div class="sy-foot-inner sy-container mx-auto">
+    <div class="sy-foot-reserved md:flex justify-between items-center">
+      <div class="sy-foot-copyright"><p>2026, Hasan Sezer Taşan</p>
+  
+  <p>
+    Made with
+    
+    <a href="https://www.sphinx-doc.org/">Sphinx</a> and
+    
+    <a href="https://shibuya.lepture.com">Shibuya theme</a>.
+  </p>
+</div>
+      <div class="sy-foot-socials">
+  <a href="https://github.com/hasansezertasan/mibare" aria-label="GitHub">
+    <iconify-icon icon="simple-icons:github"></iconify-icon>
+  </a></div>
+    </div>
+  </div>
+</footer>
+      <script src="../_static/documentation_options.js?v=5929fcd5"></script>
+      <script src="../_static/doctools.js?v=9bcbadda"></script>
+      <script src="../_static/sphinx_highlight.js?v=dc90522c"></script>
+      <script src="../_static/clipboard.min.js?v=a7894cd8"></script>
+      <script src="../_static/copybutton.js?v=f281be69"></script>
+      <script>let toggleHintShow = 'Click to show';</script>
+      <script>let toggleHintHide = 'Click to hide';</script>
+      <script>let toggleOpenOnPrint = 'true';</script>
+      <script src="../_static/togglebutton.js?v=b8b12719"></script>
+      <script src="../_static/design-tabs.js?v=f930bc37"></script>
+      <script>var togglebuttonSelector = '.toggle, .admonition.dropdown';</script>
+      <script src="../_static/shibuya.js?v=50760d75"></script>
+      <script>var togglebuttonSelector = '.toggle, .admonition.dropdown';</script></body>
+</html>
