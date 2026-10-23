@@ -17,6 +17,8 @@ keywords = [
   "github",
   "package-manager",
   "tool-manager",
+  "cli",
+  "installer",
 ]
 classifiers = [
   "Development Status :: 3 - Alpha",

@@ -61,5 +61,3 @@ ROOT_FOLDER_PATH: Path = _root_folder_base(_HOME) / ROOT_FOLDER_NAME
 """Path to the root folder."""
 LOG_FILE_PATH: Path = ROOT_FOLDER_PATH / "main.log"
 """Path to the log file."""
-CONFIG_FILE_PATH: Path = ROOT_FOLDER_PATH / "config.json"
-"""Path to the config file."""
