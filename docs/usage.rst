@@ -16,7 +16,8 @@ The mise registry's backends for the repository are printed in registry order,
 with the first marked as the recommendation. ``mibare`` needs a ``mise`` binary
 (2026.10.13 or newer) on ``PATH`` and runs it in an isolated environment, so
 your own mise settings never change the answer. ``GITHUB_TOKEN`` is passed
-through when set.
+through when set. Set ``MIBARE_LOG_LEVEL`` (``DEBUG``, ``INFO``, ``WARNING`` or
+``ERROR``; default ``INFO``) to change log verbosity.
 
 Exit codes:
 

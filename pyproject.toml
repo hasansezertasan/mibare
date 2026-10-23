@@ -15,7 +15,6 @@ keywords = [
   "backend",
   "resolver",
   "github",
-  "cli",
   "package-manager",
   "tool-manager",
 ]
@@ -33,18 +32,14 @@ classifiers = [
   "Programming Language :: Python :: 3.14",
   "Programming Language :: Python :: Implementation :: CPython",
   "Programming Language :: Python",
-  "Topic :: Software Development :: Build Tools",
   "Topic :: Software Development",
-  "Typing :: Typed",
   "Topic :: Utilities",
+  "Typing :: Typed",
 ]
 requires-python = ">=3.14"
-# The enabled component's runtime deps live here, not in an optional extra: a
-# selected component is chosen at generation time and ``__main__`` imports it
-# unconditionally (see the CLI > GUI > TUI > web > MCP > worker precedence
-# there), so ``pip install mibare`` must pull them or the binary
-# fails at launch. Same for pydantic-settings, which ``core.config`` imports
-# unconditionally when enabled.
+# Runtime deps live here, not in an optional extra: ``__main__`` imports typer
+# unconditionally, so ``pip install mibare`` must pull it or the binary fails
+# at launch.
 dependencies = [
   "typer>=0.20.0",
 ]
