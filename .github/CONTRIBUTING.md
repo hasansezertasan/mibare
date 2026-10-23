@@ -315,8 +315,8 @@ as a runnable setup checklist.
 
 ## Join The Project Team
 
-Interested in helping maintain mibare? Open a
-[discussion](https://github.com/hasansezertasan/mibare/discussions)
+Interested in helping maintain mibare? Open an
+[issue](https://github.com/hasansezertasan/mibare/issues/new/choose)
 or reach out after a few merged contributions.
 
 <!-- omit in toc -->

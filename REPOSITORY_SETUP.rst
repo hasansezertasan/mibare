@@ -563,29 +563,6 @@ Check these even when the update runner reports success:
 * **Leave the merge to a human.** An update PR with no linked issue takes the
   ``no-issue`` label.
 
-Enable GitHub Discussions
--------------------------
-
-New repositories ship with Discussions disabled, but the community-health files
-point contributors there — ``SUPPORT.md``, the issue-template chooser
-(``config.yml``), and the **Join The Project Team** section of the Contributing
-Guidelines all link to the Discussions tab, so those links 404 until it is
-turned on.
-
-**[AGENT]**
-
-.. code-block:: sh
-
-   gh api -X PATCH repos/hasansezertasan/mibare -F has_discussions=true
-
-**[CHECK]**
-
-.. code-block:: sh
-
-   [ "$(gh repo view hasansezertasan/mibare --json hasDiscussionsEnabled --jq '.hasDiscussionsEnabled')" = "true" ]
-
-UI equivalent: **Settings → General → Features** — tick **Discussions**.
-
 Optional integrations
 ---------------------
 
