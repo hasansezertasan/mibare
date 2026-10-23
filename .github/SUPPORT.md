@@ -7,8 +7,7 @@ Thanks for using mibare! Here is where to get help.
 - Read the [documentation](https://hasansezertasan.github.io/mibare).
 - Search the [existing issues](https://github.com/hasansezertasan/mibare/issues) —
   your question may already be answered.
-- Ask open-ended questions in
-  [GitHub Discussions](https://github.com/hasansezertasan/mibare/discussions).
+- Still stuck? Open an [issue](https://github.com/hasansezertasan/mibare/issues/new/choose).
 
 ## Reporting bugs and requesting features
 
