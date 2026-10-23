@@ -1,0 +1,987 @@
+<!DOCTYPE html>
+<html lang="en" data-accent-color="amber" data-content_root="../../../">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"><title>mibare.core.resolve - mibare</title><link rel="index" title="Index" href="../../../genindex.html" /><link rel="search" title="Search" href="../../../search.html" /><script>
+    function setColorMode(t){let e=document.documentElement;e.setAttribute("data-color-mode",t);let a=window.matchMedia&&window.matchMedia("(prefers-color-scheme: dark)").matches,s=t;"auto"===t&&(s=a?"dark":"light"),"light"===s?(e.classList.remove("dark"),e.classList.add("light")):(e.classList.remove("light"),e.classList.add("dark"))}
+    setColorMode(localStorage._theme||"auto");
+  </script><link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=e1a1ceaf" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/shibuya.css?v=2ceb65ce" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/copybutton.css?v=76b2166b" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/togglebutton.css?v=9c3e77be" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/sphinx-design.min.css?v=95c83b7e" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/sphinx_paramlinks.css" />
+    <link media="print" rel="stylesheet" type="text/css" href="../../../_static/print.css?v=20ff2c19" />
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --sy-f-text: "Inter", var(--sy-f-sys), var(--sy-f-cjk), sans-serif;
+  --sy-f-heading: "Inter", var(--sy-f-sys), var(--sy-f-cjk), sans-serif;
+}
+</style>
+    
+  <meta property="og:type" content="website"/><meta property="og:title" content="mibare.core.resolve"/>
+    <meta name="twitter:card" content="summary"/>
+  </head>
+<body><div class="sy-head">
+  <div class="sy-head-blur"></div>
+  <div class="sy-head-inner sy-container mx-auto">
+    <a class="sy-head-brand" href="../../../index.html">
+      
+      
+      <strong>mibare</strong>
+    </a>
+    <div class="sy-head-nav" id="head-nav">
+      <nav class="sy-head-links"></nav>
+      <div class="sy-head-extra flex items-center print:hidden"><form class="searchbox flex items-center" action="../../../search.html" method="get">
+  <input type="text" name="q" placeholder="Search" />
+  <kbd>/</kbd>
+</form><div class="sy-head-socials">
+  <a href="https://github.com/hasansezertasan/mibare" aria-label="GitHub">
+    <iconify-icon icon="simple-icons:github"></iconify-icon>
+  </a></div></div>
+    </div>
+    <div class="sy-head-actions flex items-center shrink-0 print:hidden"><button class="js-theme theme-switch flex items-center"
+data-aria-auto="Switch to light color mode"
+data-aria-light="Switch to dark color mode"
+data-aria-dark="Switch to auto color mode">
+<i class="i-lucide theme-icon"></i>
+</button><button class="md:hidden flex items-center js-menu" aria-label="Menu" type="button" aria-controls="head-nav" aria-expanded="false">
+        <div class="hamburger">
+          <span class="hamburger_1"></span>
+          <span class="hamburger_2"></span>
+          <span class="hamburger_3"></span>
+        </div>
+      </button>
+    </div>
+  </div>
+</div>
+<div class="sy-page sy-container flex mx-auto">
+  <aside id="lside" class="sy-lside md:w-72 md:shrink-0 print:hidden">
+    <div class="sy-lside-inner md:sticky">
+      <div class="sy-scrollbar p-6">
+        <div class="globaltoc" data-expand-depth="0"><p class="caption" role="heading" aria-level="3"><span class="caption-text">Contents</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../installation.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../usage.html">Usage</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../cli-reference.html">CLI reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../modules.html">Modules</a></li>
+</ul>
+<p class="caption" role="heading" aria-level="3"><span class="caption-text">Project notes</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../adr/0001-python-with-uv-and-library-core.html">Python with uv, library core behind the CLI</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../adr/0002-mise-as-source-of-truth.html">Use the mise binary as the source of truth</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../adr/0003-single-python-version.html">Target a single Python version</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../research/mise-backends.html">How mise models and chooses backends</a></li>
+</ul>
+
+        </div>
+      </div>
+    </div>
+  </aside>
+  <div class="lside-overlay js-menu" role="button" aria-label="Close left sidebar" aria-controls="lside" aria-expanded="false"></div>
+  <aside id="rside" class="sy-rside pb-3 w-64 shrink-0 order-last">
+    <button class="rside-close js-menu xl:hidden" aria-label="Close Table of Contents" type="button" aria-controls="rside" aria-expanded="false">
+      <i class="i-lucide close"></i>
+    </button>
+    <div class="sy-scrollbar sy-rside-inner px-6 xl:top-16 xl:sticky xl:pl-0 pt-6 pb-4"><div id="ethical-ad-placement" data-ea-publisher="readthedocs"></div></div>
+  </aside>
+  <div class="rside-overlay js-menu" role="button" aria-label="Close Table of Contents" aria-controls="rside" aria-expanded="false"></div>
+  <main class="sy-main w-full max-sm:max-w-full print:pt-6">
+<div class="sy-breadcrumbs" role="navigation">
+  <div class="sy-breadcrumbs-inner flex items-center">
+    <div class="md:hidden mr-3">
+      <button class="js-menu" aria-label="Menu" type="button" aria-controls="lside" aria-expanded="false">
+        <i class="i-lucide menu"></i>
+      </button>
+    </div>
+    <ol class="flex-1" itemscope itemtype="https://schema.org/BreadcrumbList"><li itemprop="itemListElement" itemscope itemtype="https://schema.org/ListItem">
+        <a itemprop="item" href="../../../index.html"><span itemprop="name">mibare</span></a>
+        <span>/</span>
+        <meta itemprop="position" content="1" />
+      </li><li itemprop="itemListElement" itemscope itemtype="https://schema.org/ListItem">
+        <a itemprop="item" href="../../index.html"><span itemprop="name">Module code</span></a>
+        <span>/</span>
+        <meta itemprop="position" content="2" />
+      </li><li itemprop="itemListElement" itemscope itemtype="https://schema.org/ListItem">
+        <strong itemprop="name">mibare.core.resolve</strong>
+        <meta itemprop="position" content="3" />
+      </li></ol>
+    <div class="xl:hidden ml-1">
+      <button class="js-menu" aria-label="Show table of contents" type="button" aria-controls="rside"
+        aria-expanded="false">
+        <i class="i-lucide outdent"></i>
+      </button>
+    </div>
+  </div>
+</div><div class="flex flex-col break-words justify-between">
+      <div class="relative min-w-0 max-w-6xl px-6 pb-6 pt-8 xl:px-12">
+  <article class="yue" role="main">
+          <h1>Source code for mibare.core.resolve</h1><div class="highlight"><pre>
+<span></span><span data-line="1"><span class="sd">"""Resolve a repository to a ranked list of mise backend candidates."""</span>
+</span><span data-line="2">
+</span><span data-line="3"><span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
+</span><span data-line="4">
+</span><span data-line="5"><span class="kn">import</span><span class="w"> </span><span class="nn">re</span>
+</span><span data-line="6"><span class="kn">import</span><span class="w"> </span><span class="nn">shlex</span>
+</span><span data-line="7"><span class="kn">from</span><span class="w"> </span><span class="nn">dataclasses</span><span class="w"> </span><span class="kn">import</span> <span class="n">dataclass</span><span class="p">,</span> <span class="n">field</span>
+</span><span data-line="8"><span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">TYPE_CHECKING</span><span class="p">,</span> <span class="n">NamedTuple</span>
+</span><span data-line="9">
+</span><span data-line="10"><span class="kn">from</span><span class="w"> </span><span class="nn">mibare.core.assets</span><span class="w"> </span><span class="kn">import</span> <span class="n">matching_assets</span>
+</span><span data-line="11"><span class="kn">from</span><span class="w"> </span><span class="nn">mibare.core.ecosystems</span><span class="w"> </span><span class="kn">import</span> <span class="n">ECOSYSTEMS</span><span class="p">,</span> <span class="n">Detection</span><span class="p">,</span> <span class="n">Ecosystem</span>
+</span><span data-line="12"><span class="kn">from</span><span class="w"> </span><span class="nn">mibare.core.errors</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+</span><span data-line="13">    <span class="n">GitHubUnavailableError</span><span class="p">,</span>
+</span><span data-line="14">    <span class="n">InvalidPlatformError</span><span class="p">,</span>
+</span><span data-line="15">    <span class="n">MibareError</span><span class="p">,</span>
+</span><span data-line="16">    <span class="n">MiseError</span><span class="p">,</span>
+</span><span data-line="17">    <span class="n">RepositoryNotFoundError</span><span class="p">,</span>
+</span><span data-line="18"><span class="p">)</span>
+</span><span data-line="19"><span class="kn">from</span><span class="w"> </span><span class="nn">mibare.core.platform</span><span class="w"> </span><span class="kn">import</span> <span class="n">Platform</span><span class="p">,</span> <span class="n">host_platform</span>
+</span><span data-line="20"><span class="kn">from</span><span class="w"> </span><span class="nn">mibare.core.repository</span><span class="w"> </span><span class="kn">import</span> <span class="n">Repository</span><span class="p">,</span> <span class="n">parse_repository</span>
+</span><span data-line="21">
+</span><span data-line="22"><span class="k">if</span> <span class="n">TYPE_CHECKING</span><span class="p">:</span>
+</span><span data-line="23">    <span class="kn">from</span><span class="w"> </span><span class="nn">collections.abc</span><span class="w"> </span><span class="kn">import</span> <span class="n">Sequence</span>
+</span><span data-line="24">
+</span><span data-line="25">    <span class="kn">from</span><span class="w"> </span><span class="nn">mibare.core.github</span><span class="w"> </span><span class="kn">import</span> <span class="n">GitHub</span>
+</span><span data-line="26">    <span class="kn">from</span><span class="w"> </span><span class="nn">mibare.core.mise</span><span class="w"> </span><span class="kn">import</span> <span class="n">Mise</span><span class="p">,</span> <span class="n">RegistryEntry</span>
+</span><span data-line="27">
+</span><span data-line="28"><span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s2">"SCHEMA_VERSION"</span><span class="p">,</span> <span class="s2">"Candidate"</span><span class="p">,</span> <span class="s2">"Exclusion"</span><span class="p">,</span> <span class="s2">"Resolution"</span><span class="p">,</span> <span class="s2">"resolve"</span><span class="p">]</span>
+</span><span data-line="29">
+</span><span data-line="30"><span class="c1">#: Version of the shape ``Resolution.to_dict`` returns; bumped on breaking changes.</span>
+</span><span data-line="31"><span class="n">SCHEMA_VERSION</span> <span class="o">=</span> <span class="mi">1</span>
+</span><span data-line="32">
+</span><span data-line="33"><span class="c1">#: Backends whose tool identifier is the repository's ``owner/repo``. asdf and</span>
+</span><span data-line="34"><span class="c1">#: vfox are left out: their value names a plugin repository, not the tool's own.</span>
+</span><span data-line="35"><span class="n">_OWNER_REPO_BACKENDS</span> <span class="o">=</span> <span class="nb">frozenset</span><span class="p">({</span><span class="s2">"aqua"</span><span class="p">,</span> <span class="s2">"github"</span><span class="p">,</span> <span class="s2">"spm"</span><span class="p">,</span> <span class="s2">"ubi"</span><span class="p">})</span>
+</span><span data-line="36"><span class="c1">#: Prefixes that precede an ``owner/repo`` path, as in ``go:github.com/o/r`` and</span>
+</span><span data-line="37"><span class="c1">#: ``npm:github:o/r``.</span>
+</span><span data-line="38"><span class="n">_REPOSITORY_PREFIXES</span> <span class="o">=</span> <span class="p">(</span><span class="s2">"github.com/"</span><span class="p">,</span> <span class="s2">"github:"</span><span class="p">)</span>
+</span><span data-line="39"><span class="c1">#: Backends whose slash-valued identifier may be a GitHub ``owner/repo`` or URL,</span>
+</span><span data-line="40"><span class="c1">#: as in ``cargo:owner/repo``; without a slash the value is a package name.</span>
+</span><span data-line="41"><span class="n">_SHORTHAND_BACKENDS</span> <span class="o">=</span> <span class="nb">frozenset</span><span class="p">({</span><span class="s2">"cargo"</span><span class="p">,</span> <span class="s2">"pypi"</span><span class="p">})</span>
+</span><span data-line="42"><span class="n">_SHORTHAND_PATH</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">compile</span><span class="p">(</span><span class="sa">r</span><span class="s2">"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+"</span><span class="p">)</span>
+</span><span data-line="43">
+</span><span data-line="44">
+</span><span data-line="45"><span class="c1">#: Positions on mise's documented preference ladder, best first.</span>
+</span><span data-line="46"><span class="n">_TIERS</span> <span class="o">=</span> <span class="p">(</span>
+</span><span data-line="47">    <span class="nb">frozenset</span><span class="p">({</span><span class="s2">"packslip"</span><span class="p">}),</span>
+</span><span data-line="48">    <span class="nb">frozenset</span><span class="p">({</span><span class="s2">"aqua"</span><span class="p">,</span> <span class="s2">"github"</span><span class="p">,</span> <span class="s2">"gitlab"</span><span class="p">,</span> <span class="s2">"forgejo"</span><span class="p">}),</span>
+</span><span data-line="49">    <span class="nb">frozenset</span><span class="p">({</span><span class="s2">"http"</span><span class="p">,</span> <span class="s2">"s3"</span><span class="p">}),</span>
+</span><span data-line="50">    <span class="nb">frozenset</span><span class="p">({</span><span class="s2">"cargo"</span><span class="p">,</span> <span class="s2">"go"</span><span class="p">,</span> <span class="s2">"npm"</span><span class="p">,</span> <span class="s2">"pypi"</span><span class="p">,</span> <span class="s2">"pipx"</span><span class="p">,</span> <span class="s2">"gem"</span><span class="p">,</span> <span class="s2">"dotnet"</span><span class="p">,</span> <span class="s2">"spm"</span><span class="p">,</span> <span class="s2">"conda"</span><span class="p">}),</span>
+</span><span data-line="51"><span class="p">)</span>
+</span><span data-line="52"><span class="n">_MIN_TIED</span> <span class="o">=</span> <span class="mi">2</span>  <span class="c1"># candidates needed in a tier before a tie-break matters</span>
+</span><span data-line="53"><span class="n">_LOWEST_TIER</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">_TIERS</span><span class="p">)</span> <span class="o">+</span> <span class="mi">1</span>  <span class="c1"># plugins and anything unknown</span>
+</span><span data-line="54"><span class="n">_LEGACY_BACKENDS</span> <span class="o">=</span> <span class="nb">frozenset</span><span class="p">({</span><span class="s2">"asdf"</span><span class="p">,</span> <span class="s2">"vfox"</span><span class="p">,</span> <span class="s2">"ubi"</span><span class="p">})</span>
+</span><span data-line="55"><span class="c1">#: What ``cmd.exe`` needs no quotes around; anything else is double-quoted.</span>
+</span><span data-line="56"><span class="n">_CMD_SAFE</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">compile</span><span class="p">(</span><span class="sa">r</span><span class="s2">"[\w@+:./</span><span class="se">\\</span><span class="s2">-]+"</span><span class="p">)</span>
+</span><span data-line="57"><span class="n">_SHORT_NAME_REASON</span> <span class="o">=</span> <span class="p">(</span>
+</span><span data-line="58">    <span class="s2">"the command uses the registry short name </span><span class="si">{!r}</span><span class="s2">, so its options apply"</span>
+</span><span data-line="59"><span class="p">)</span>
+</span><span data-line="60"><span class="n">_LEGACY_WARNING</span> <span class="o">=</span> <span class="s2">"</span><span class="si">{}</span><span class="s2"> is a legacy backend that mise discourages; prefer another."</span>
+</span><span data-line="61">
+</span><span data-line="62">
+<div class="viewcode-block" id="Candidate">
+<a class="viewcode-back" href="../../../modules.html#mibare.core.resolve.Candidate">[docs]</a>
+</span><span data-line="63"><span class="nd">@dataclass</span><span class="p">(</span><span class="n">frozen</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+</span><span data-line="64"><span class="k">class</span><span class="w"> </span><span class="nc">Candidate</span><span class="p">:</span>
+</span><span data-line="65"><span class="w">    </span><span class="sd">"""A backend string that could install the tool for a repository.</span>
+</span><span data-line="66">
+</span><span data-line="67"><span class="sd">    Attributes:</span>
+</span><span data-line="68"><span class="sd">        backend_string: The backend and tool identifier, as in ``aqua:owner/repo``.</span>
+</span><span data-line="69"><span class="sd">        reasons: Short explanations of why it is a candidate; each resolution</span>
+</span><span data-line="70"><span class="sd">            step that finds the backend string appends its own.</span>
+</span><span data-line="71"><span class="sd">        tier: Position on mise's preference ladder, 1 (packslip) to 5 (plugins);</span>
+</span><span data-line="72"><span class="sd">            lower is better. Defaults to the lowest tier.</span>
+</span><span data-line="73"><span class="sd">        legacy: Whether the backend is a legacy backend (asdf, vfox, ubi).</span>
+</span><span data-line="74"><span class="sd">        warning: Why the candidate is discouraged, or ``None``.</span>
+</span><span data-line="75"><span class="sd">        registry_name: The registry short name to install it by, set only for</span>
+</span><span data-line="76"><span class="sd">            the backend mise itself picks first for that name, so the entry's</span>
+</span><span data-line="77"><span class="sd">            options apply; ``None`` otherwise.</span>
+</span><span data-line="78"><span class="sd">        windows_target: Whether the target platform is Windows, so the command</span>
+</span><span data-line="79"><span class="sd">            is quoted for ``cmd.exe`` instead of a POSIX shell.</span>
+</span><span data-line="80"><span class="sd">    """</span>
+</span><span data-line="81">
+</span><span data-line="82">    <span class="n">backend_string</span><span class="p">:</span> <span class="nb">str</span>
+</span><span data-line="83">    <span class="n">reasons</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span> <span class="o">=</span> <span class="p">()</span>
+</span><span data-line="84">    <span class="n">tier</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="n">_LOWEST_TIER</span>
+</span><span data-line="85">    <span class="n">legacy</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
+</span><span data-line="86">    <span class="n">warning</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+</span><span data-line="87">    <span class="n">registry_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+</span><span data-line="88">    <span class="n">windows_target</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
+</span><span data-line="89">
+</span><span data-line="90">    <span class="nd">@property</span>
+</span><span data-line="91">    <span class="k">def</span><span class="w"> </span><span class="nf">mise_use</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+</span><span data-line="92"><span class="w">        </span><span class="sd">"""A ready-to-paste ``mise use`` command for this candidate.</span>
+</span><span data-line="93">
+</span><span data-line="94"><span class="sd">        It names the registry short name when :attr:`registry_name` is set and</span>
+</span><span data-line="95"><span class="sd">        the backend string otherwise. The argument is quoted for the target</span>
+</span><span data-line="96"><span class="sd">        platform's shell, since the command is pasted where the tool will be</span>
+</span><span data-line="97"><span class="sd">        installed: double quotes for a Windows target, POSIX quotes otherwise.</span>
+</span><span data-line="98"><span class="sd">        """</span>
+</span><span data-line="99">        <span class="n">argument</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">registry_name</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">backend_string</span>
+</span><span data-line="100">        <span class="n">quote</span> <span class="o">=</span> <span class="n">_quote_for_cmd</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">windows_target</span> <span class="k">else</span> <span class="n">shlex</span><span class="o">.</span><span class="n">quote</span>
+</span><span data-line="101">        <span class="k">return</span> <span class="sa">f</span><span class="s2">"mise use </span><span class="si">{</span><span class="n">quote</span><span class="p">(</span><span class="n">argument</span><span class="p">)</span><span class="si">}</span><span class="s2">"</span></div>
+
+</span><span data-line="102">
+</span><span data-line="103">
+<div class="viewcode-block" id="Exclusion">
+<a class="viewcode-back" href="../../../modules.html#mibare.core.resolve.Exclusion">[docs]</a>
+</span><span data-line="104"><span class="nd">@dataclass</span><span class="p">(</span><span class="n">frozen</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+</span><span data-line="105"><span class="k">class</span><span class="w"> </span><span class="nc">Exclusion</span><span class="p">:</span>
+</span><span data-line="106"><span class="w">    </span><span class="sd">"""A backend string that was considered and left out.</span>
+</span><span data-line="107">
+</span><span data-line="108"><span class="sd">    Attributes:</span>
+</span><span data-line="109"><span class="sd">        backend_string: The backend string that was excluded.</span>
+</span><span data-line="110"><span class="sd">        reason: Why it was excluded.</span>
+</span><span data-line="111"><span class="sd">    """</span>
+</span><span data-line="112">
+</span><span data-line="113">    <span class="n">backend_string</span><span class="p">:</span> <span class="nb">str</span>
+</span><span data-line="114">    <span class="n">reason</span><span class="p">:</span> <span class="nb">str</span></div>
+
+</span><span data-line="115">
+</span><span data-line="116">
+<div class="viewcode-block" id="Resolution">
+<a class="viewcode-back" href="../../../modules.html#mibare.core.resolve.Resolution">[docs]</a>
+</span><span data-line="117"><span class="nd">@dataclass</span><span class="p">(</span><span class="n">frozen</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+</span><span data-line="118"><span class="k">class</span><span class="w"> </span><span class="nc">Resolution</span><span class="p">:</span>
+</span><span data-line="119"><span class="w">    </span><span class="sd">"""The outcome of resolving a repository.</span>
+</span><span data-line="120">
+</span><span data-line="121"><span class="sd">    Attributes:</span>
+</span><span data-line="122"><span class="sd">        repository: The repository that was resolved.</span>
+</span><span data-line="123"><span class="sd">        mise_version: The mise version whose registry the answer came from.</span>
+</span><span data-line="124"><span class="sd">        candidates: The candidates, best first.</span>
+</span><span data-line="125"><span class="sd">        exclusions: The backend strings considered and left out, each with</span>
+</span><span data-line="126"><span class="sd">            the reason.</span>
+</span><span data-line="127"><span class="sd">        platform: The target platform the candidates are for.</span>
+</span><span data-line="128"><span class="sd">        notes: Remarks for the user, such as a target that differs from the host.</span>
+</span><span data-line="129"><span class="sd">    """</span>
+</span><span data-line="130">
+</span><span data-line="131">    <span class="n">repository</span><span class="p">:</span> <span class="n">Repository</span>
+</span><span data-line="132">    <span class="n">mise_version</span><span class="p">:</span> <span class="nb">str</span>
+</span><span data-line="133">    <span class="n">candidates</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">Candidate</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span>
+</span><span data-line="134">    <span class="n">exclusions</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">Exclusion</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span> <span class="o">=</span> <span class="p">()</span>
+</span><span data-line="135">    <span class="n">platform</span><span class="p">:</span> <span class="n">Platform</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+</span><span data-line="136">    <span class="n">notes</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span> <span class="o">=</span> <span class="p">()</span>
+</span><span data-line="137">
+</span><span data-line="138">    <span class="nd">@property</span>
+</span><span data-line="139">    <span class="k">def</span><span class="w"> </span><span class="nf">recommendation</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Candidate</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
+</span><span data-line="140"><span class="w">        </span><span class="sd">"""The top-ranked candidate, or ``None`` when there is no backend."""</span>
+</span><span data-line="141">        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">candidates</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">candidates</span> <span class="k">else</span> <span class="kc">None</span>
+</span><span data-line="142">
+<div class="viewcode-block" id="Resolution.to_dict">
+<a class="viewcode-back" href="../../../modules.html#mibare.core.resolve.Resolution.to_dict">[docs]</a>
+</span><span data-line="143">    <span class="k">def</span><span class="w"> </span><span class="nf">to_dict</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">object</span><span class="p">]:</span>
+</span><span data-line="144"><span class="w">        </span><span class="sd">"""Return the documented, stable JSON shape of this resolution.</span>
+</span><span data-line="145">
+</span><span data-line="146"><span class="sd">        The keys, in order: ``schema_version`` (int), ``repository``</span>
+</span><span data-line="147"><span class="sd">        (``owner/repo``), ``mise_version``, ``recommendation`` (the first</span>
+</span><span data-line="148"><span class="sd">        candidate's backend string, or ``null``), ``candidates`` (best first,</span>
+</span><span data-line="149"><span class="sd">        each with ``backend_string``, ``recommended``, ``tier`` (int),</span>
+</span><span data-line="150"><span class="sd">        ``legacy`` (bool), ``warning`` (text or ``null``), ``command`` and</span>
+</span><span data-line="151"><span class="sd">        ``reasons``), ``excluded`` (each with ``backend_string`` and</span>
+</span><span data-line="152"><span class="sd">        ``reason``), ``platform`` (``os-arch`` or ``null``) and ``notes`` (a</span>
+</span><span data-line="153"><span class="sd">        list of text).</span>
+</span><span data-line="154">
+</span><span data-line="155"><span class="sd">        ``command`` is always a string. It names the registry short name for</span>
+</span><span data-line="156"><span class="sd">        the backend mise itself picks first for a registry entry (so the</span>
+</span><span data-line="157"><span class="sd">        entry's options, which ``mise registry --json`` omits, apply), and the</span>
+</span><span data-line="158"><span class="sd">        explicit backend string for every other candidate; ``backend_string``</span>
+</span><span data-line="159"><span class="sd">        stays the candidate's identity either way. An argument that needs</span>
+</span><span data-line="160"><span class="sd">        quoting is quoted for the target platform's shell: double quotes for a</span>
+</span><span data-line="161"><span class="sd">        Windows target, POSIX single quotes otherwise.</span>
+</span><span data-line="162">
+</span><span data-line="163"><span class="sd">        Returns:</span>
+</span><span data-line="164"><span class="sd">            dict[str, object]: A structure that ``json.dumps`` accepts.</span>
+</span><span data-line="165"><span class="sd">        """</span>
+</span><span data-line="166">        <span class="n">top</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">recommendation</span>
+</span><span data-line="167">        <span class="k">return</span> <span class="p">{</span>
+</span><span data-line="168">            <span class="s2">"schema_version"</span><span class="p">:</span> <span class="n">SCHEMA_VERSION</span><span class="p">,</span>
+</span><span data-line="169">            <span class="s2">"repository"</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">repository</span><span class="o">.</span><span class="n">shorthand</span><span class="p">,</span>
+</span><span data-line="170">            <span class="s2">"mise_version"</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">mise_version</span><span class="p">,</span>
+</span><span data-line="171">            <span class="s2">"recommendation"</span><span class="p">:</span> <span class="n">top</span><span class="o">.</span><span class="n">backend_string</span> <span class="k">if</span> <span class="n">top</span> <span class="k">else</span> <span class="kc">None</span><span class="p">,</span>
+</span><span data-line="172">            <span class="s2">"candidates"</span><span class="p">:</span> <span class="p">[</span>
+</span><span data-line="173">                <span class="p">{</span>
+</span><span data-line="174">                    <span class="s2">"backend_string"</span><span class="p">:</span> <span class="n">candidate</span><span class="o">.</span><span class="n">backend_string</span><span class="p">,</span>
+</span><span data-line="175">                    <span class="s2">"recommended"</span><span class="p">:</span> <span class="n">candidate</span> <span class="ow">is</span> <span class="n">top</span><span class="p">,</span>
+</span><span data-line="176">                    <span class="s2">"tier"</span><span class="p">:</span> <span class="n">candidate</span><span class="o">.</span><span class="n">tier</span><span class="p">,</span>
+</span><span data-line="177">                    <span class="s2">"legacy"</span><span class="p">:</span> <span class="n">candidate</span><span class="o">.</span><span class="n">legacy</span><span class="p">,</span>
+</span><span data-line="178">                    <span class="s2">"warning"</span><span class="p">:</span> <span class="n">candidate</span><span class="o">.</span><span class="n">warning</span><span class="p">,</span>
+</span><span data-line="179">                    <span class="s2">"command"</span><span class="p">:</span> <span class="n">candidate</span><span class="o">.</span><span class="n">mise_use</span><span class="p">,</span>
+</span><span data-line="180">                    <span class="s2">"reasons"</span><span class="p">:</span> <span class="nb">list</span><span class="p">(</span><span class="n">candidate</span><span class="o">.</span><span class="n">reasons</span><span class="p">),</span>
+</span><span data-line="181">                <span class="p">}</span>
+</span><span data-line="182">                <span class="k">for</span> <span class="n">candidate</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">candidates</span>
+</span><span data-line="183">            <span class="p">],</span>
+</span><span data-line="184">            <span class="s2">"excluded"</span><span class="p">:</span> <span class="p">[</span>
+</span><span data-line="185">                <span class="p">{</span><span class="s2">"backend_string"</span><span class="p">:</span> <span class="n">exclusion</span><span class="o">.</span><span class="n">backend_string</span><span class="p">,</span> <span class="s2">"reason"</span><span class="p">:</span> <span class="n">exclusion</span><span class="o">.</span><span class="n">reason</span><span class="p">}</span>
+</span><span data-line="186">                <span class="k">for</span> <span class="n">exclusion</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">exclusions</span>
+</span><span data-line="187">            <span class="p">],</span>
+</span><span data-line="188">            <span class="s2">"platform"</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">platform</span><span class="o">.</span><span class="n">label</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">platform</span> <span class="k">else</span> <span class="kc">None</span><span class="p">,</span>
+</span><span data-line="189">            <span class="s2">"notes"</span><span class="p">:</span> <span class="nb">list</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">notes</span><span class="p">),</span>
+</span><span data-line="190">        <span class="p">}</span></div>
+</div>
+
+</span><span data-line="191">
+</span><span data-line="192">
+</span><span data-line="193"><span class="k">def</span><span class="w"> </span><span class="nf">_repository_of</span><span class="p">(</span><span class="n">backend_string</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Repository</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
+</span><span data-line="194"><span class="w">    </span><span class="sd">"""Work out which repository a backend string installs from, if any.</span>
+</span><span data-line="195">
+</span><span data-line="196"><span class="sd">    Args:</span>
+</span><span data-line="197"><span class="sd">        backend_string: A backend string such as ``aqua:owner/repo``.</span>
+</span><span data-line="198">
+</span><span data-line="199"><span class="sd">    Returns:</span>
+</span><span data-line="200"><span class="sd">        Repository | None: The repository, or ``None`` when the backend string</span>
+</span><span data-line="201"><span class="sd">            does not point at a GitHub repository (``pypi:ansible``).</span>
+</span><span data-line="202"><span class="sd">    """</span>
+</span><span data-line="203">    <span class="n">backend</span><span class="p">,</span> <span class="n">_</span><span class="p">,</span> <span class="n">tool</span> <span class="o">=</span> <span class="n">backend_string</span><span class="o">.</span><span class="n">partition</span><span class="p">(</span><span class="s2">":"</span><span class="p">)</span>
+</span><span data-line="204">    <span class="n">tool</span> <span class="o">=</span> <span class="n">tool</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">"["</span><span class="p">,</span> <span class="mi">1</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+</span><span data-line="205">    <span class="k">if</span> <span class="n">backend</span> <span class="ow">in</span> <span class="n">_SHORTHAND_BACKENDS</span> <span class="ow">and</span> <span class="s2">"/"</span> <span class="ow">in</span> <span class="n">tool</span><span class="p">:</span>
+</span><span data-line="206">        <span class="k">return</span> <span class="n">_parse_or_none</span><span class="p">(</span><span class="n">tool</span><span class="p">)</span>
+</span><span data-line="207">    <span class="k">if</span> <span class="n">backend</span> <span class="ow">in</span> <span class="n">_OWNER_REPO_BACKENDS</span><span class="p">:</span>
+</span><span data-line="208">        <span class="n">path</span> <span class="o">=</span> <span class="n">tool</span>
+</span><span data-line="209">    <span class="k">else</span><span class="p">:</span>
+</span><span data-line="210">        <span class="n">prefix</span> <span class="o">=</span> <span class="nb">next</span><span class="p">((</span><span class="n">p</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">_REPOSITORY_PREFIXES</span> <span class="k">if</span> <span class="n">tool</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="n">p</span><span class="p">)),</span> <span class="kc">None</span><span class="p">)</span>
+</span><span data-line="211">        <span class="k">if</span> <span class="n">prefix</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+</span><span data-line="212">            <span class="k">return</span> <span class="kc">None</span>
+</span><span data-line="213">        <span class="n">path</span> <span class="o">=</span> <span class="n">tool</span><span class="o">.</span><span class="n">removeprefix</span><span class="p">(</span><span class="n">prefix</span><span class="p">)</span>
+</span><span data-line="214">    <span class="n">owner</span><span class="p">,</span> <span class="n">_</span><span class="p">,</span> <span class="n">rest</span> <span class="o">=</span> <span class="n">path</span><span class="o">.</span><span class="n">partition</span><span class="p">(</span><span class="s2">"/"</span><span class="p">)</span>
+</span><span data-line="215">    <span class="n">name</span> <span class="o">=</span> <span class="n">rest</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">"/"</span><span class="p">,</span> <span class="mi">1</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">removesuffix</span><span class="p">(</span><span class="s2">".git"</span><span class="p">)</span>
+</span><span data-line="216">    <span class="k">return</span> <span class="n">Repository</span><span class="p">(</span><span class="n">owner</span><span class="p">,</span> <span class="n">name</span><span class="p">)</span> <span class="k">if</span> <span class="n">owner</span> <span class="ow">and</span> <span class="n">name</span> <span class="k">else</span> <span class="kc">None</span>
+</span><span data-line="217">
+</span><span data-line="218">
+</span><span data-line="219"><span class="k">def</span><span class="w"> </span><span class="nf">_parse_or_none</span><span class="p">(</span><span class="n">text</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Repository</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
+</span><span data-line="220"><span class="w">    </span><span class="sd">"""Read ``text`` as a GitHub URL or ``owner/repo``.</span>
+</span><span data-line="221">
+</span><span data-line="222"><span class="sd">    Returns:</span>
+</span><span data-line="223"><span class="sd">        Repository | None: The repository, or ``None`` when ``text`` names none.</span>
+</span><span data-line="224"><span class="sd">    """</span>
+</span><span data-line="225">    <span class="k">try</span><span class="p">:</span>
+</span><span data-line="226">        <span class="k">return</span> <span class="n">parse_repository</span><span class="p">(</span><span class="n">text</span><span class="p">)</span>
+</span><span data-line="227">    <span class="k">except</span> <span class="n">MibareError</span><span class="p">:</span>
+</span><span data-line="228">        <span class="k">return</span> <span class="kc">None</span>
+</span><span data-line="229">
+</span><span data-line="230">
+</span><span data-line="231"><span class="k">def</span><span class="w"> </span><span class="nf">_points_at</span><span class="p">(</span><span class="n">repository</span><span class="p">:</span> <span class="n">Repository</span><span class="p">,</span> <span class="n">backend_string</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+</span><span data-line="232"><span class="w">    </span><span class="sd">"""Whether ``backend_string`` installs from ``repository``, ignoring case.</span>
+</span><span data-line="233">
+</span><span data-line="234"><span class="sd">    Returns:</span>
+</span><span data-line="235"><span class="sd">        bool: ``True`` when the backend string points at ``repository``.</span>
+</span><span data-line="236"><span class="sd">    """</span>
+</span><span data-line="237">    <span class="n">target</span> <span class="o">=</span> <span class="n">_repository_of</span><span class="p">(</span><span class="n">backend_string</span><span class="p">)</span>
+</span><span data-line="238">    <span class="k">return</span> <span class="p">(</span>
+</span><span data-line="239">        <span class="n">target</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">target</span><span class="o">.</span><span class="n">shorthand</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span> <span class="o">==</span> <span class="n">repository</span><span class="o">.</span><span class="n">shorthand</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span>
+</span><span data-line="240">    <span class="p">)</span>
+</span><span data-line="241">
+</span><span data-line="242">
+</span><span data-line="243"><span class="k">def</span><span class="w"> </span><span class="nf">_dedupe_key</span><span class="p">(</span><span class="n">backend_string</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+</span><span data-line="244"><span class="w">    </span><span class="sd">"""Fold the case of the GitHub ``owner`` and ``repo`` only.</span>
+</span><span data-line="245">
+</span><span data-line="246"><span class="sd">    A subpath (``/cmd/Foo``), a non-GitHub identifier and any ``[options]`` keep</span>
+</span><span data-line="247"><span class="sd">    their case, since only GitHub owner and repository names are case-insensitive.</span>
+</span><span data-line="248">
+</span><span data-line="249"><span class="sd">    Returns:</span>
+</span><span data-line="250"><span class="sd">        str: ``backend_string`` with its ``owner/repo`` part case-folded.</span>
+</span><span data-line="251"><span class="sd">    """</span>
+</span><span data-line="252">    <span class="n">backend</span><span class="p">,</span> <span class="n">colon</span><span class="p">,</span> <span class="n">tool</span> <span class="o">=</span> <span class="n">backend_string</span><span class="o">.</span><span class="n">partition</span><span class="p">(</span><span class="s2">":"</span><span class="p">)</span>
+</span><span data-line="253">    <span class="n">path</span><span class="p">,</span> <span class="n">bracket</span><span class="p">,</span> <span class="n">options</span> <span class="o">=</span> <span class="n">tool</span><span class="o">.</span><span class="n">partition</span><span class="p">(</span><span class="s2">"["</span><span class="p">)</span>
+</span><span data-line="254">    <span class="n">prefix</span> <span class="o">=</span> <span class="s2">""</span>
+</span><span data-line="255">    <span class="n">shorthand</span> <span class="o">=</span> <span class="n">backend</span> <span class="ow">in</span> <span class="n">_SHORTHAND_BACKENDS</span> <span class="ow">and</span> <span class="n">_SHORTHAND_PATH</span><span class="o">.</span><span class="n">fullmatch</span><span class="p">(</span><span class="n">path</span><span class="p">)</span>
+</span><span data-line="256">    <span class="k">if</span> <span class="ow">not</span> <span class="n">shorthand</span> <span class="ow">and</span> <span class="n">backend</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">_OWNER_REPO_BACKENDS</span><span class="p">:</span>
+</span><span data-line="257">        <span class="n">matched</span> <span class="o">=</span> <span class="nb">next</span><span class="p">((</span><span class="n">p</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">_REPOSITORY_PREFIXES</span> <span class="k">if</span> <span class="n">path</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="n">p</span><span class="p">)),</span> <span class="kc">None</span><span class="p">)</span>
+</span><span data-line="258">        <span class="k">if</span> <span class="n">matched</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+</span><span data-line="259">            <span class="k">return</span> <span class="n">backend_string</span>
+</span><span data-line="260">        <span class="n">prefix</span> <span class="o">=</span> <span class="n">matched</span>
+</span><span data-line="261">    <span class="n">segments</span> <span class="o">=</span> <span class="n">path</span><span class="o">.</span><span class="n">removeprefix</span><span class="p">(</span><span class="n">prefix</span><span class="p">)</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">"/"</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span>
+</span><span data-line="262">    <span class="n">segments</span><span class="p">[:</span><span class="mi">2</span><span class="p">]</span> <span class="o">=</span> <span class="p">[</span><span class="n">segment</span><span class="o">.</span><span class="n">casefold</span><span class="p">()</span> <span class="k">for</span> <span class="n">segment</span> <span class="ow">in</span> <span class="n">segments</span><span class="p">[:</span><span class="mi">2</span><span class="p">]]</span>
+</span><span data-line="263">    <span class="n">folded</span> <span class="o">=</span> <span class="n">prefix</span> <span class="o">+</span> <span class="s2">"/"</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">segments</span><span class="p">)</span>
+</span><span data-line="264">    <span class="k">return</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">backend</span><span class="si">}{</span><span class="n">colon</span><span class="si">}{</span><span class="n">folded</span><span class="si">}{</span><span class="n">bracket</span><span class="si">}{</span><span class="n">options</span><span class="si">}</span><span class="s2">"</span>
+</span><span data-line="265">
+</span><span data-line="266">
+</span><span data-line="267"><span class="k">def</span><span class="w"> </span><span class="nf">_known</span><span class="p">(</span><span class="n">backends</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]],</span> <span class="n">backend_string</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+</span><span data-line="268"><span class="w">    </span><span class="sd">"""Find the spelling already recorded for ``backend_string``, ignoring case.</span>
+</span><span data-line="269">
+</span><span data-line="270"><span class="sd">    Returns:</span>
+</span><span data-line="271"><span class="sd">        str: The first spelling seen, or ``backend_string`` when it is new.</span>
+</span><span data-line="272"><span class="sd">    """</span>
+</span><span data-line="273">    <span class="n">key</span> <span class="o">=</span> <span class="n">_dedupe_key</span><span class="p">(</span><span class="n">backend_string</span><span class="p">)</span>
+</span><span data-line="274">    <span class="k">return</span> <span class="nb">next</span><span class="p">((</span><span class="n">b</span> <span class="k">for</span> <span class="n">b</span> <span class="ow">in</span> <span class="n">backends</span> <span class="k">if</span> <span class="n">_dedupe_key</span><span class="p">(</span><span class="n">b</span><span class="p">)</span> <span class="o">==</span> <span class="n">key</span><span class="p">),</span> <span class="n">backend_string</span><span class="p">)</span>
+</span><span data-line="275">
+</span><span data-line="276">
+</span><span data-line="277"><span class="k">def</span><span class="w"> </span><span class="nf">_quote_for_cmd</span><span class="p">(</span><span class="n">argument</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+</span><span data-line="278"><span class="w">    </span><span class="sd">"""Quote ``argument`` for ``cmd.exe`` when it holds anything but plain characters.</span>
+</span><span data-line="279">
+</span><span data-line="280"><span class="sd">    Embedded double quotes are backslash-escaped, with the backslashes before</span>
+</span><span data-line="281"><span class="sd">    them (and any trailing ones) doubled, as the Windows argument parser reads</span>
+</span><span data-line="282"><span class="sd">    them. ``%`` is not escaped: ``cmd.exe`` expands it even inside quotes.</span>
+</span><span data-line="283">
+</span><span data-line="284"><span class="sd">    Returns:</span>
+</span><span data-line="285"><span class="sd">        str: ``argument`` as is, or wrapped in double quotes.</span>
+</span><span data-line="286"><span class="sd">    """</span>
+</span><span data-line="287">    <span class="k">if</span> <span class="n">_CMD_SAFE</span><span class="o">.</span><span class="n">fullmatch</span><span class="p">(</span><span class="n">argument</span><span class="p">):</span>
+</span><span data-line="288">        <span class="k">return</span> <span class="n">argument</span>
+</span><span data-line="289">    <span class="n">escaped</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">sub</span><span class="p">(</span><span class="sa">r</span><span class="s1">'(</span><span class="se">\\</span><span class="s1">*)"'</span><span class="p">,</span> <span class="k">lambda</span> <span class="n">m</span><span class="p">:</span> <span class="sa">f</span><span class="s1">'</span><span class="si">{</span><span class="n">m</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="mi">2</span><span class="si">}</span><span class="se">\\</span><span class="s1">"'</span><span class="p">,</span> <span class="n">argument</span><span class="p">)</span>
+</span><span data-line="290">    <span class="n">escaped</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">sub</span><span class="p">(</span><span class="sa">r</span><span class="s2">"(</span><span class="se">\\</span><span class="s2">+)$"</span><span class="p">,</span> <span class="k">lambda</span> <span class="n">m</span><span class="p">:</span> <span class="n">m</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span> <span class="o">*</span> <span class="mi">2</span><span class="p">,</span> <span class="n">escaped</span><span class="p">)</span>
+</span><span data-line="291">    <span class="k">return</span> <span class="sa">f</span><span class="s1">'"</span><span class="si">{</span><span class="n">escaped</span><span class="si">}</span><span class="s1">"'</span>
+</span><span data-line="292">
+</span><span data-line="293">
+</span><span data-line="294"><span class="k">def</span><span class="w"> </span><span class="nf">_candidate</span><span class="p">(</span>
+</span><span data-line="295">    <span class="n">backend_string</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+</span><span data-line="296">    <span class="n">reasons</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">],</span>
+</span><span data-line="297">    <span class="n">registry_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span data-line="298">    <span class="o">*</span><span class="p">,</span>
+</span><span data-line="299">    <span class="n">windows_target</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+</span><span data-line="300"><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Candidate</span><span class="p">:</span>
+</span><span data-line="301"><span class="w">    </span><span class="sd">"""Build a candidate, placing it on the tier ladder and flagging legacy.</span>
+</span><span data-line="302">
+</span><span data-line="303"><span class="sd">    Returns:</span>
+</span><span data-line="304"><span class="sd">        Candidate: The candidate for ``backend_string``.</span>
+</span><span data-line="305"><span class="sd">    """</span>
+</span><span data-line="306">    <span class="n">backend</span> <span class="o">=</span> <span class="n">backend_string</span><span class="o">.</span><span class="n">partition</span><span class="p">(</span><span class="s2">":"</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+</span><span data-line="307">    <span class="n">tier</span> <span class="o">=</span> <span class="nb">next</span><span class="p">(</span>
+</span><span data-line="308">        <span class="p">(</span><span class="n">rank</span> <span class="k">for</span> <span class="n">rank</span><span class="p">,</span> <span class="n">tier</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">_TIERS</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span> <span class="k">if</span> <span class="n">backend</span> <span class="ow">in</span> <span class="n">tier</span><span class="p">),</span> <span class="n">_LOWEST_TIER</span>
+</span><span data-line="309">    <span class="p">)</span>
+</span><span data-line="310">    <span class="n">legacy</span> <span class="o">=</span> <span class="n">backend</span> <span class="ow">in</span> <span class="n">_LEGACY_BACKENDS</span>
+</span><span data-line="311">    <span class="n">warning</span> <span class="o">=</span> <span class="n">_LEGACY_WARNING</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">backend</span><span class="p">)</span> <span class="k">if</span> <span class="n">legacy</span> <span class="k">else</span> <span class="kc">None</span>
+</span><span data-line="312">    <span class="k">return</span> <span class="n">Candidate</span><span class="p">(</span>
+</span><span data-line="313">        <span class="n">backend_string</span><span class="p">,</span>
+</span><span data-line="314">        <span class="nb">tuple</span><span class="p">(</span><span class="n">reasons</span><span class="p">),</span>
+</span><span data-line="315">        <span class="n">tier</span><span class="p">,</span>
+</span><span data-line="316">        <span class="n">legacy</span><span class="p">,</span>
+</span><span data-line="317">        <span class="n">warning</span><span class="p">,</span>
+</span><span data-line="318">        <span class="n">registry_name</span><span class="p">,</span>
+</span><span data-line="319">        <span class="n">windows_target</span><span class="p">,</span>
+</span><span data-line="320">    <span class="p">)</span>
+</span><span data-line="321">
+</span><span data-line="322">
+</span><span data-line="323"><span class="k">def</span><span class="w"> </span><span class="nf">_unusable_reason</span><span class="p">(</span><span class="n">candidate</span><span class="p">:</span> <span class="n">Candidate</span><span class="p">,</span> <span class="n">platform</span><span class="p">:</span> <span class="n">Platform</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
+</span><span data-line="324"><span class="w">    </span><span class="sd">"""Say why the candidate's backend cannot run on ``platform``.</span>
+</span><span data-line="325">
+</span><span data-line="326"><span class="sd">    Returns:</span>
+</span><span data-line="327"><span class="sd">        str | None: The reason for asdf on Windows, ``None`` otherwise.</span>
+</span><span data-line="328"><span class="sd">    """</span>
+</span><span data-line="329">    <span class="k">if</span> <span class="n">platform</span><span class="o">.</span><span class="n">os</span> <span class="o">==</span> <span class="s2">"windows"</span> <span class="ow">and</span> <span class="n">candidate</span><span class="o">.</span><span class="n">backend_string</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s2">"asdf:"</span><span class="p">):</span>
+</span><span data-line="330">        <span class="k">return</span> <span class="s2">"the asdf backend is not available on Windows"</span>
+</span><span data-line="331">    <span class="k">return</span> <span class="kc">None</span>
+</span><span data-line="332">
+</span><span data-line="333">
+</span><span data-line="334"><span class="k">def</span><span class="w"> </span><span class="nf">_platform_notes</span><span class="p">(</span><span class="n">target</span><span class="p">:</span> <span class="n">Platform</span><span class="p">,</span> <span class="n">host</span><span class="p">:</span> <span class="n">Platform</span> <span class="o">|</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="o">...</span><span class="p">]:</span>
+</span><span data-line="335"><span class="w">    </span><span class="sd">"""Note when the target differs from the host, or the host is unknown.</span>
+</span><span data-line="336">
+</span><span data-line="337"><span class="sd">    Returns:</span>
+</span><span data-line="338"><span class="sd">        tuple[str, ...]: One note, or none when the platforms are equal.</span>
+</span><span data-line="339"><span class="sd">    """</span>
+</span><span data-line="340">    <span class="k">if</span> <span class="n">host</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+</span><span data-line="341">        <span class="n">note</span> <span class="o">=</span> <span class="p">(</span>
+</span><span data-line="342">            <span class="sa">f</span><span class="s2">"Target platform </span><span class="si">{</span><span class="n">target</span><span class="o">.</span><span class="n">label</span><span class="si">}</span><span class="s2">; the host platform could not be "</span>
+</span><span data-line="343">            <span class="s2">"detected, so registry data may not match it."</span>
+</span><span data-line="344">        <span class="p">)</span>
+</span><span data-line="345">        <span class="k">return</span> <span class="p">(</span><span class="n">note</span><span class="p">,)</span>
+</span><span data-line="346">    <span class="k">if</span> <span class="n">target</span> <span class="o">==</span> <span class="n">host</span><span class="p">:</span>
+</span><span data-line="347">        <span class="k">return</span> <span class="p">()</span>
+</span><span data-line="348">    <span class="n">note</span> <span class="o">=</span> <span class="p">(</span>
+</span><span data-line="349">        <span class="sa">f</span><span class="s2">"Target platform </span><span class="si">{</span><span class="n">target</span><span class="o">.</span><span class="n">label</span><span class="si">}</span><span class="s2"> differs from the host </span><span class="si">{</span><span class="n">host</span><span class="o">.</span><span class="n">label</span><span class="si">}</span><span class="s2">; "</span>
+</span><span data-line="350">        <span class="s2">"registry data still reflects the host."</span>
+</span><span data-line="351">    <span class="p">)</span>
+</span><span data-line="352">    <span class="k">return</span> <span class="p">(</span><span class="n">note</span><span class="p">,)</span>
+</span><span data-line="353">
+</span><span data-line="354">
+</span><span data-line="355"><span class="nd">@dataclass</span>
+</span><span data-line="356"><span class="k">class</span><span class="w"> </span><span class="nc">_Findings</span><span class="p">:</span>
+</span><span data-line="357"><span class="w">    </span><span class="sd">"""What the ladder's steps have found so far.</span>
+</span><span data-line="358">
+</span><span data-line="359"><span class="sd">    Attributes:</span>
+</span><span data-line="360"><span class="sd">        backends: Each backend string found, with the reasons it was found,</span>
+</span><span data-line="361"><span class="sd">            in discovery order.</span>
+</span><span data-line="362"><span class="sd">        exclusions: The backend strings a step considered and left out, each</span>
+</span><span data-line="363"><span class="sd">            with the reason.</span>
+</span><span data-line="364"><span class="sd">        skipped: The failure of each skipped step, by step name.</span>
+</span><span data-line="365"><span class="sd">        notes: Remarks from detectors about their own search, without repeats.</span>
+</span><span data-line="366"><span class="sd">        short_names: The registry short name of each backend string that mise</span>
+</span><span data-line="367"><span class="sd">            picks first for it, by backend string.</span>
+</span><span data-line="368"><span class="sd">    """</span>
+</span><span data-line="369">
+</span><span data-line="370">    <span class="n">backends</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]]</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="nb">dict</span><span class="p">)</span>
+</span><span data-line="371">    <span class="n">short_names</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="nb">dict</span><span class="p">)</span>
+</span><span data-line="372">    <span class="n">exclusions</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">Exclusion</span><span class="p">]</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="nb">list</span><span class="p">)</span>
+</span><span data-line="373">    <span class="n">skipped</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">MibareError</span><span class="p">]</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="nb">dict</span><span class="p">)</span>
+</span><span data-line="374">    <span class="n">notes</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="nb">list</span><span class="p">)</span>
+</span><span data-line="375">
+</span><span data-line="376">
+</span><span data-line="377"><span class="k">def</span><span class="w"> </span><span class="nf">_probe_aqua</span><span class="p">(</span><span class="n">repository</span><span class="p">:</span> <span class="n">Repository</span><span class="p">,</span> <span class="n">mise</span><span class="p">:</span> <span class="n">Mise</span><span class="p">,</span> <span class="n">findings</span><span class="p">:</span> <span class="n">_Findings</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+</span><span data-line="378"><span class="w">    </span><span class="sd">"""Add ``aqua:owner/repo`` when mise has a recipe for it.</span>
+</span><span data-line="379">
+</span><span data-line="380"><span class="sd">    A failed probe is recorded as a skipped step instead of raised.</span>
+</span><span data-line="381"><span class="sd">    """</span>
+</span><span data-line="382">    <span class="n">aqua</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">"aqua:</span><span class="si">{</span><span class="n">repository</span><span class="o">.</span><span class="n">shorthand</span><span class="si">}</span><span class="s2">"</span>
+</span><span data-line="383">    <span class="k">if</span> <span class="n">_known</span><span class="p">(</span><span class="n">findings</span><span class="o">.</span><span class="n">backends</span><span class="p">,</span> <span class="n">aqua</span><span class="p">)</span> <span class="ow">in</span> <span class="n">findings</span><span class="o">.</span><span class="n">backends</span><span class="p">:</span>
+</span><span data-line="384">        <span class="k">return</span>
+</span><span data-line="385">    <span class="k">try</span><span class="p">:</span>
+</span><span data-line="386">        <span class="n">exists</span> <span class="o">=</span> <span class="n">mise</span><span class="o">.</span><span class="n">recipe_exists</span><span class="p">(</span><span class="n">aqua</span><span class="p">)</span>
+</span><span data-line="387">    <span class="k">except</span> <span class="n">MiseError</span> <span class="k">as</span> <span class="n">error</span><span class="p">:</span>
+</span><span data-line="388">        <span class="n">findings</span><span class="o">.</span><span class="n">skipped</span><span class="p">[</span><span class="s2">"aqua"</span><span class="p">]</span> <span class="o">=</span> <span class="n">error</span>
+</span><span data-line="389">        <span class="k">return</span>
+</span><span data-line="390">    <span class="k">if</span> <span class="n">exists</span><span class="p">:</span>
+</span><span data-line="391">        <span class="n">findings</span><span class="o">.</span><span class="n">backends</span><span class="p">[</span><span class="n">aqua</span><span class="p">]</span> <span class="o">=</span> <span class="p">[</span><span class="s2">"mise can list versions for this aqua recipe"</span><span class="p">]</span>
+</span><span data-line="392">    <span class="k">else</span><span class="p">:</span>
+</span><span data-line="393">        <span class="n">reason</span> <span class="o">=</span> <span class="s2">"mise has no aqua recipe for this repository"</span>
+</span><span data-line="394">        <span class="n">findings</span><span class="o">.</span><span class="n">exclusions</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">Exclusion</span><span class="p">(</span><span class="n">aqua</span><span class="p">,</span> <span class="n">reason</span><span class="p">))</span>
+</span><span data-line="395">
+</span><span data-line="396">
+</span><span data-line="397"><span class="k">def</span><span class="w"> </span><span class="nf">_picked_by_mise</span><span class="p">(</span><span class="n">backends</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="o">...</span><span class="p">],</span> <span class="n">target</span><span class="p">:</span> <span class="n">Platform</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
+</span><span data-line="398"><span class="w">    </span><span class="sd">"""Find the backend mise installs for a registry entry's short name.</span>
+</span><span data-line="399">
+</span><span data-line="400"><span class="sd">    Returns:</span>
+</span><span data-line="401"><span class="sd">        str | None: The first backend that can run on ``target``, or ``None``.</span>
+</span><span data-line="402"><span class="sd">    """</span>
+</span><span data-line="403">    <span class="k">return</span> <span class="nb">next</span><span class="p">(</span>
+</span><span data-line="404">        <span class="p">(</span><span class="n">b</span> <span class="k">for</span> <span class="n">b</span> <span class="ow">in</span> <span class="n">backends</span> <span class="k">if</span> <span class="n">_unusable_reason</span><span class="p">(</span><span class="n">_candidate</span><span class="p">(</span><span class="n">b</span><span class="p">,</span> <span class="p">[]),</span> <span class="n">target</span><span class="p">)</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">),</span>
+</span><span data-line="405">        <span class="kc">None</span><span class="p">,</span>
+</span><span data-line="406">    <span class="p">)</span>
+</span><span data-line="407">
+</span><span data-line="408">
+</span><span data-line="409"><span class="k">def</span><span class="w"> </span><span class="nf">_record_entry</span><span class="p">(</span><span class="n">findings</span><span class="p">:</span> <span class="n">_Findings</span><span class="p">,</span> <span class="n">entry</span><span class="p">:</span> <span class="n">RegistryEntry</span><span class="p">,</span> <span class="n">target</span><span class="p">:</span> <span class="n">Platform</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+</span><span data-line="410"><span class="w">    </span><span class="sd">"""Record a registry entry's backends and the one its short name installs.</span>
+</span><span data-line="411">
+</span><span data-line="412"><span class="sd">    The first backend of an entry that can run on ``target`` is the one mise</span>
+</span><span data-line="413"><span class="sd">    picks for the entry's short name (the registry output is already filtered</span>
+</span><span data-line="414"><span class="sd">    for the host and the isolated settings), so it is recorded with that name.</span>
+</span><span data-line="415"><span class="sd">    """</span>
+</span><span data-line="416">    <span class="n">backends</span> <span class="o">=</span> <span class="n">findings</span><span class="o">.</span><span class="n">backends</span>
+</span><span data-line="417">    <span class="n">reason</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">"listed in the mise registry as </span><span class="si">{</span><span class="n">entry</span><span class="o">.</span><span class="n">tool</span><span class="si">!r}</span><span class="s2">"</span>
+</span><span data-line="418">    <span class="k">for</span> <span class="n">backend</span> <span class="ow">in</span> <span class="n">entry</span><span class="o">.</span><span class="n">backends</span><span class="p">:</span>
+</span><span data-line="419">        <span class="n">reasons</span> <span class="o">=</span> <span class="n">backends</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">_known</span><span class="p">(</span><span class="n">backends</span><span class="p">,</span> <span class="n">backend</span><span class="p">),</span> <span class="p">[])</span>
+</span><span data-line="420">        <span class="k">if</span> <span class="n">reason</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">reasons</span><span class="p">:</span>
+</span><span data-line="421">            <span class="n">reasons</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">reason</span><span class="p">)</span>
+</span><span data-line="422">    <span class="n">first</span> <span class="o">=</span> <span class="n">_picked_by_mise</span><span class="p">(</span><span class="n">entry</span><span class="o">.</span><span class="n">backends</span><span class="p">,</span> <span class="n">target</span><span class="p">)</span>
+</span><span data-line="423">    <span class="k">if</span> <span class="n">first</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+</span><span data-line="424">        <span class="n">_</span> <span class="o">=</span> <span class="n">findings</span><span class="o">.</span><span class="n">short_names</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">_known</span><span class="p">(</span><span class="n">backends</span><span class="p">,</span> <span class="n">first</span><span class="p">),</span> <span class="n">entry</span><span class="o">.</span><span class="n">tool</span><span class="p">)</span>
+</span><span data-line="425">
+</span><span data-line="426">
+</span><span data-line="427"><span class="k">def</span><span class="w"> </span><span class="nf">_found_backends</span><span class="p">(</span><span class="n">repository</span><span class="p">:</span> <span class="n">Repository</span><span class="p">,</span> <span class="n">mise</span><span class="p">:</span> <span class="n">Mise</span><span class="p">,</span> <span class="n">target</span><span class="p">:</span> <span class="n">Platform</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">_Findings</span><span class="p">:</span>
+</span><span data-line="428"><span class="w">    </span><span class="sd">"""Run the registry and aqua steps for ``repository``.</span>
+</span><span data-line="429">
+</span><span data-line="430"><span class="sd">    Returns:</span>
+</span><span data-line="431"><span class="sd">        _Findings: The backend strings found and any skipped step.</span>
+</span><span data-line="432"><span class="sd">    """</span>
+</span><span data-line="433">    <span class="n">findings</span> <span class="o">=</span> <span class="n">_Findings</span><span class="p">()</span>
+</span><span data-line="434">    <span class="k">for</span> <span class="n">entry</span> <span class="ow">in</span> <span class="n">mise</span><span class="o">.</span><span class="n">registry</span><span class="p">():</span>
+</span><span data-line="435">        <span class="k">if</span> <span class="nb">any</span><span class="p">(</span><span class="n">_points_at</span><span class="p">(</span><span class="n">repository</span><span class="p">,</span> <span class="n">backend</span><span class="p">)</span> <span class="k">for</span> <span class="n">backend</span> <span class="ow">in</span> <span class="n">entry</span><span class="o">.</span><span class="n">backends</span><span class="p">):</span>
+</span><span data-line="436">            <span class="n">_record_entry</span><span class="p">(</span><span class="n">findings</span><span class="p">,</span> <span class="n">entry</span><span class="p">,</span> <span class="n">target</span><span class="p">)</span>
+</span><span data-line="437">    <span class="n">_probe_aqua</span><span class="p">(</span><span class="n">repository</span><span class="p">,</span> <span class="n">mise</span><span class="p">,</span> <span class="n">findings</span><span class="p">)</span>
+</span><span data-line="438">    <span class="k">return</span> <span class="n">findings</span>
+</span><span data-line="439">
+</span><span data-line="440">
+</span><span data-line="441"><span class="k">def</span><span class="w"> </span><span class="nf">_github_release</span><span class="p">(</span>
+</span><span data-line="442">    <span class="n">repository</span><span class="p">:</span> <span class="n">Repository</span><span class="p">,</span> <span class="n">mise</span><span class="p">:</span> <span class="n">Mise</span><span class="p">,</span> <span class="n">github</span><span class="p">:</span> <span class="n">GitHub</span><span class="p">,</span> <span class="n">target</span><span class="p">:</span> <span class="n">Platform</span>
+</span><span data-line="443"><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">],</span> <span class="nb">str</span><span class="p">]:</span>
+</span><span data-line="444"><span class="w">    </span><span class="sd">"""Run the ``github:`` step: offer it when a release has a platform asset.</span>
+</span><span data-line="445">
+</span><span data-line="446"><span class="sd">    Args:</span>
+</span><span data-line="447"><span class="sd">        repository: The repository being resolved.</span>
+</span><span data-line="448"><span class="sd">        mise: The mise adapter, for the existence probe.</span>
+</span><span data-line="449"><span class="sd">        github: The GitHub adapter, for the latest release's assets.</span>
+</span><span data-line="450"><span class="sd">        target: The platform the asset must be built for.</span>
+</span><span data-line="451">
+</span><span data-line="452"><span class="sd">    Returns:</span>
+</span><span data-line="453"><span class="sd">        tuple[list[str], str]: The reasons to offer ``github:owner/repo``, or</span>
+</span><span data-line="454"><span class="sd">            no reasons and why it should not be offered.</span>
+</span><span data-line="455"><span class="sd">    """</span>
+</span><span data-line="456">    <span class="k">if</span> <span class="ow">not</span> <span class="n">mise</span><span class="o">.</span><span class="n">recipe_exists</span><span class="p">(</span><span class="sa">f</span><span class="s2">"github:</span><span class="si">{</span><span class="n">repository</span><span class="o">.</span><span class="n">shorthand</span><span class="si">}</span><span class="s2">"</span><span class="p">):</span>
+</span><span data-line="457">        <span class="k">return</span> <span class="p">[],</span> <span class="s2">"mise cannot list versions of this github repository"</span>
+</span><span data-line="458">    <span class="n">assets</span> <span class="o">=</span> <span class="n">github</span><span class="o">.</span><span class="n">latest_release_assets</span><span class="p">(</span><span class="n">repository</span><span class="p">)</span>
+</span><span data-line="459">    <span class="k">if</span> <span class="ow">not</span> <span class="n">assets</span><span class="p">:</span>
+</span><span data-line="460">        <span class="k">return</span> <span class="p">[],</span> <span class="s2">"the repository has no release with assets"</span>
+</span><span data-line="461">    <span class="n">matches</span> <span class="o">=</span> <span class="n">matching_assets</span><span class="p">(</span><span class="n">assets</span><span class="p">,</span> <span class="n">target</span><span class="p">)</span>
+</span><span data-line="462">    <span class="k">if</span> <span class="ow">not</span> <span class="n">matches</span><span class="p">:</span>
+</span><span data-line="463">        <span class="k">return</span> <span class="p">[],</span> <span class="sa">f</span><span class="s2">"the latest release has no asset for </span><span class="si">{</span><span class="n">target</span><span class="o">.</span><span class="n">label</span><span class="si">}</span><span class="s2">"</span>
+</span><span data-line="464">    <span class="k">return</span> <span class="p">[</span><span class="sa">f</span><span class="s2">"the latest release has an asset for </span><span class="si">{</span><span class="n">target</span><span class="o">.</span><span class="n">label</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">matches</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="si">}</span><span class="s2">"</span><span class="p">],</span> <span class="s2">""</span>
+</span><span data-line="465">
+</span><span data-line="466">
+</span><span data-line="467"><span class="k">def</span><span class="w"> </span><span class="nf">_add_github</span><span class="p">(</span>
+</span><span data-line="468">    <span class="n">findings</span><span class="p">:</span> <span class="n">_Findings</span><span class="p">,</span>
+</span><span data-line="469">    <span class="n">repository</span><span class="p">:</span> <span class="n">Repository</span><span class="p">,</span>
+</span><span data-line="470">    <span class="n">mise</span><span class="p">:</span> <span class="n">Mise</span><span class="p">,</span>
+</span><span data-line="471">    <span class="n">github</span><span class="p">:</span> <span class="n">GitHub</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
+</span><span data-line="472">    <span class="n">target</span><span class="p">:</span> <span class="n">Platform</span><span class="p">,</span>
+</span><span data-line="473"><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+</span><span data-line="474"><span class="w">    </span><span class="sd">"""Add the ``github:`` backend to ``findings`` when its step passes.</span>
+</span><span data-line="475">
+</span><span data-line="476"><span class="sd">    A failed probe or an unreachable GitHub is recorded as a skipped step.</span>
+</span><span data-line="477"><span class="sd">    """</span>
+</span><span data-line="478">    <span class="n">backend</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">"github:</span><span class="si">{</span><span class="n">repository</span><span class="o">.</span><span class="n">shorthand</span><span class="si">}</span><span class="s2">"</span>
+</span><span data-line="479">    <span class="k">if</span> <span class="n">github</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">_known</span><span class="p">(</span><span class="n">findings</span><span class="o">.</span><span class="n">backends</span><span class="p">,</span> <span class="n">backend</span><span class="p">)</span> <span class="ow">in</span> <span class="n">findings</span><span class="o">.</span><span class="n">backends</span><span class="p">:</span>
+</span><span data-line="480">        <span class="k">return</span>
+</span><span data-line="481">    <span class="k">try</span><span class="p">:</span>
+</span><span data-line="482">        <span class="n">reasons</span><span class="p">,</span> <span class="n">why_not</span> <span class="o">=</span> <span class="n">_github_release</span><span class="p">(</span><span class="n">repository</span><span class="p">,</span> <span class="n">mise</span><span class="p">,</span> <span class="n">github</span><span class="p">,</span> <span class="n">target</span><span class="p">)</span>
+</span><span data-line="483">    <span class="k">except</span> <span class="p">(</span><span class="n">GitHubUnavailableError</span><span class="p">,</span> <span class="n">MiseError</span><span class="p">)</span> <span class="k">as</span> <span class="n">error</span><span class="p">:</span>
+</span><span data-line="484">        <span class="n">findings</span><span class="o">.</span><span class="n">skipped</span><span class="p">[</span><span class="s2">"github:"</span><span class="p">]</span> <span class="o">=</span> <span class="n">error</span>
+</span><span data-line="485">        <span class="k">return</span>
+</span><span data-line="486">    <span class="k">if</span> <span class="n">reasons</span><span class="p">:</span>
+</span><span data-line="487">        <span class="n">findings</span><span class="o">.</span><span class="n">backends</span><span class="p">[</span><span class="n">backend</span><span class="p">]</span> <span class="o">=</span> <span class="n">reasons</span>
+</span><span data-line="488">    <span class="k">else</span><span class="p">:</span>
+</span><span data-line="489">        <span class="n">findings</span><span class="o">.</span><span class="n">exclusions</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">Exclusion</span><span class="p">(</span><span class="n">backend</span><span class="p">,</span> <span class="n">why_not</span><span class="p">))</span>
+</span><span data-line="490">
+</span><span data-line="491">
+</span><span data-line="492"><span class="k">def</span><span class="w"> </span><span class="nf">_run_detectors</span><span class="p">(</span>
+</span><span data-line="493">    <span class="n">repository</span><span class="p">:</span> <span class="n">Repository</span><span class="p">,</span>
+</span><span data-line="494">    <span class="n">github</span><span class="p">:</span> <span class="n">GitHub</span><span class="p">,</span>
+</span><span data-line="495">    <span class="n">target</span><span class="p">:</span> <span class="n">Platform</span><span class="p">,</span>
+</span><span data-line="496">    <span class="n">ecosystems</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">Ecosystem</span><span class="p">],</span>
+</span><span data-line="497"><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">list</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="n">Ecosystem</span><span class="p">,</span> <span class="n">Detection</span><span class="p">]],</span> <span class="n">GitHubUnavailableError</span> <span class="o">|</span> <span class="kc">None</span><span class="p">]:</span>
+</span><span data-line="498"><span class="w">    </span><span class="sd">"""Run each detector, surviving a GitHub failure in any of them.</span>
+</span><span data-line="499">
+</span><span data-line="500"><span class="sd">    Returns:</span>
+</span><span data-line="501"><span class="sd">        tuple[list[tuple[Ecosystem, Detection]], GitHubUnavailableError | None]:</span>
+</span><span data-line="502"><span class="sd">            The detections that completed and the last failure, if any.</span>
+</span><span data-line="503"><span class="sd">    """</span>
+</span><span data-line="504">    <span class="n">outcomes</span> <span class="o">=</span> <span class="p">[</span>
+</span><span data-line="505">        <span class="p">(</span><span class="n">ecosystem</span><span class="p">,</span> <span class="n">_detect_one</span><span class="p">(</span><span class="n">ecosystem</span><span class="p">,</span> <span class="n">repository</span><span class="p">,</span> <span class="n">github</span><span class="p">,</span> <span class="n">target</span><span class="p">))</span>
+</span><span data-line="506">        <span class="k">for</span> <span class="n">ecosystem</span> <span class="ow">in</span> <span class="n">ecosystems</span>
+</span><span data-line="507">    <span class="p">]</span>
+</span><span data-line="508">    <span class="n">results</span> <span class="o">=</span> <span class="p">[</span>
+</span><span data-line="509">        <span class="p">(</span><span class="n">ecosystem</span><span class="p">,</span> <span class="n">detection</span><span class="p">)</span>
+</span><span data-line="510">        <span class="k">for</span> <span class="n">ecosystem</span><span class="p">,</span> <span class="n">outcome</span> <span class="ow">in</span> <span class="n">outcomes</span>
+</span><span data-line="511">        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">outcome</span><span class="p">,</span> <span class="n">GitHubUnavailableError</span><span class="p">)</span>
+</span><span data-line="512">        <span class="k">for</span> <span class="n">detection</span> <span class="ow">in</span> <span class="n">outcome</span>
+</span><span data-line="513">    <span class="p">]</span>
+</span><span data-line="514">    <span class="n">failures</span> <span class="o">=</span> <span class="p">[</span>
+</span><span data-line="515">        <span class="n">outcome</span>
+</span><span data-line="516">        <span class="k">for</span> <span class="n">_</span><span class="p">,</span> <span class="n">outcome</span> <span class="ow">in</span> <span class="n">outcomes</span>
+</span><span data-line="517">        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">outcome</span><span class="p">,</span> <span class="n">GitHubUnavailableError</span><span class="p">)</span>
+</span><span data-line="518">    <span class="p">]</span>
+</span><span data-line="519">    <span class="k">return</span> <span class="n">results</span><span class="p">,</span> <span class="n">failures</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="k">if</span> <span class="n">failures</span> <span class="k">else</span> <span class="kc">None</span>
+</span><span data-line="520">
+</span><span data-line="521">
+</span><span data-line="522"><span class="k">def</span><span class="w"> </span><span class="nf">_detect_one</span><span class="p">(</span>
+</span><span data-line="523">    <span class="n">ecosystem</span><span class="p">:</span> <span class="n">Ecosystem</span><span class="p">,</span> <span class="n">repository</span><span class="p">:</span> <span class="n">Repository</span><span class="p">,</span> <span class="n">github</span><span class="p">:</span> <span class="n">GitHub</span><span class="p">,</span> <span class="n">target</span><span class="p">:</span> <span class="n">Platform</span>
+</span><span data-line="524"><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">Detection</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span> <span class="o">|</span> <span class="n">GitHubUnavailableError</span><span class="p">:</span>
+</span><span data-line="525"><span class="w">    </span><span class="sd">"""Run one detector, returning a GitHub failure instead of raising it.</span>
+</span><span data-line="526">
+</span><span data-line="527"><span class="sd">    Returns:</span>
+</span><span data-line="528"><span class="sd">        tuple[Detection, ...] | GitHubUnavailableError: The detections (one</span>
+</span><span data-line="529"><span class="sd">            per entrypoint for a multi-entrypoint repository) or the failure.</span>
+</span><span data-line="530"><span class="sd">    """</span>
+</span><span data-line="531">    <span class="k">try</span><span class="p">:</span>
+</span><span data-line="532">        <span class="n">detected</span> <span class="o">=</span> <span class="n">ecosystem</span><span class="o">.</span><span class="n">detect</span><span class="p">(</span><span class="n">repository</span><span class="p">,</span> <span class="n">github</span><span class="p">,</span> <span class="n">target</span><span class="p">)</span>
+</span><span data-line="533">    <span class="k">except</span> <span class="n">GitHubUnavailableError</span> <span class="k">as</span> <span class="n">error</span><span class="p">:</span>
+</span><span data-line="534">        <span class="k">return</span> <span class="n">error</span>
+</span><span data-line="535">    <span class="k">return</span> <span class="p">(</span><span class="n">detected</span><span class="p">,)</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">detected</span><span class="p">,</span> <span class="n">Detection</span><span class="p">)</span> <span class="k">else</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">detected</span><span class="p">)</span>
+</span><span data-line="536">
+</span><span data-line="537">
+</span><span data-line="538"><span class="k">def</span><span class="w"> </span><span class="nf">_primary_language</span><span class="p">(</span>
+</span><span data-line="539">    <span class="n">repository</span><span class="p">:</span> <span class="n">Repository</span><span class="p">,</span> <span class="n">github</span><span class="p">:</span> <span class="n">GitHub</span>
+</span><span data-line="540"><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span> <span class="n">GitHubUnavailableError</span> <span class="o">|</span> <span class="kc">None</span><span class="p">]:</span>
+</span><span data-line="541"><span class="w">    </span><span class="sd">"""Read the primary language from GitHub, tolerating a GitHub failure.</span>
+</span><span data-line="542">
+</span><span data-line="543"><span class="sd">    Returns:</span>
+</span><span data-line="544"><span class="sd">        tuple[str | None, GitHubUnavailableError | None]: The language, or</span>
+</span><span data-line="545"><span class="sd">            ``None`` with the failure.</span>
+</span><span data-line="546"><span class="sd">    """</span>
+</span><span data-line="547">    <span class="k">try</span><span class="p">:</span>
+</span><span data-line="548">        <span class="k">return</span> <span class="n">github</span><span class="o">.</span><span class="n">primary_language</span><span class="p">(</span><span class="n">repository</span><span class="p">),</span> <span class="kc">None</span>
+</span><span data-line="549">    <span class="k">except</span> <span class="n">GitHubUnavailableError</span> <span class="k">as</span> <span class="n">error</span><span class="p">:</span>
+</span><span data-line="550">        <span class="k">return</span> <span class="kc">None</span><span class="p">,</span> <span class="n">error</span>
+</span><span data-line="551">
+</span><span data-line="552">
+</span><span data-line="553"><span class="k">def</span><span class="w"> </span><span class="nf">_offer</span><span class="p">(</span>
+</span><span data-line="554">    <span class="n">backends</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]],</span> <span class="n">detections</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="n">Ecosystem</span><span class="p">,</span> <span class="n">Detection</span><span class="p">]]</span>
+</span><span data-line="555"><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+</span><span data-line="556"><span class="w">    </span><span class="sd">"""Add the detected backends and the reasons their entrypoints were found."""</span>
+</span><span data-line="557">    <span class="k">for</span> <span class="n">_</span><span class="p">,</span> <span class="n">detection</span> <span class="ow">in</span> <span class="n">detections</span><span class="p">:</span>
+</span><span data-line="558">        <span class="n">known</span> <span class="o">=</span> <span class="n">_known</span><span class="p">(</span><span class="n">backends</span><span class="p">,</span> <span class="n">detection</span><span class="o">.</span><span class="n">backend_string</span><span class="p">)</span>
+</span><span data-line="559">        <span class="n">backends</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">known</span><span class="p">,</span> <span class="p">[])</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">detection</span><span class="o">.</span><span class="n">reason</span><span class="p">)</span>
+</span><span data-line="560">
+</span><span data-line="561">
+</span><span data-line="562"><span class="k">def</span><span class="w"> </span><span class="nf">_add_language_packages</span><span class="p">(</span>
+</span><span data-line="563">    <span class="n">findings</span><span class="p">:</span> <span class="n">_Findings</span><span class="p">,</span>
+</span><span data-line="564">    <span class="n">repository</span><span class="p">:</span> <span class="n">Repository</span><span class="p">,</span>
+</span><span data-line="565">    <span class="n">github</span><span class="p">:</span> <span class="n">GitHub</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
+</span><span data-line="566">    <span class="n">target</span><span class="p">:</span> <span class="n">Platform</span><span class="p">,</span>
+</span><span data-line="567">    <span class="n">ecosystems</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">Ecosystem</span><span class="p">],</span>
+</span><span data-line="568"><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">Exclusion</span><span class="p">,</span> <span class="o">...</span><span class="p">]:</span>
+</span><span data-line="569"><span class="w">    </span><span class="sd">"""Add the language-package backends whose ecosystem finds an entrypoint.</span>
+</span><span data-line="570">
+</span><span data-line="571"><span class="sd">    A GitHub failure is recorded as a skipped step.</span>
+</span><span data-line="572">
+</span><span data-line="573"><span class="sd">    Returns:</span>
+</span><span data-line="574"><span class="sd">        tuple[Exclusion, ...]: The ecosystems that found nothing, with why.</span>
+</span><span data-line="575"><span class="sd">    """</span>
+</span><span data-line="576">    <span class="k">if</span> <span class="n">github</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+</span><span data-line="577">        <span class="k">return</span> <span class="p">()</span>
+</span><span data-line="578">    <span class="n">results</span><span class="p">,</span> <span class="n">failure</span> <span class="o">=</span> <span class="n">_run_detectors</span><span class="p">(</span><span class="n">repository</span><span class="p">,</span> <span class="n">github</span><span class="p">,</span> <span class="n">target</span><span class="p">,</span> <span class="n">ecosystems</span><span class="p">)</span>
+</span><span data-line="579">    <span class="n">_offer</span><span class="p">(</span><span class="n">findings</span><span class="o">.</span><span class="n">backends</span><span class="p">,</span> <span class="p">[(</span><span class="n">ecosystem</span><span class="p">,</span> <span class="n">d</span><span class="p">)</span> <span class="k">for</span> <span class="n">ecosystem</span><span class="p">,</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">results</span> <span class="k">if</span> <span class="n">d</span><span class="o">.</span><span class="n">found</span><span class="p">])</span>
+</span><span data-line="580">    <span class="k">for</span> <span class="n">_</span><span class="p">,</span> <span class="n">detection</span> <span class="ow">in</span> <span class="n">results</span><span class="p">:</span>
+</span><span data-line="581">        <span class="n">findings</span><span class="o">.</span><span class="n">notes</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">n</span> <span class="k">for</span> <span class="n">n</span> <span class="ow">in</span> <span class="n">detection</span><span class="o">.</span><span class="n">notes</span> <span class="k">if</span> <span class="n">n</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">findings</span><span class="o">.</span><span class="n">notes</span><span class="p">)</span>
+</span><span data-line="582">    <span class="n">undetected</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span>
+</span><span data-line="583">        <span class="n">Exclusion</span><span class="p">(</span><span class="n">d</span><span class="o">.</span><span class="n">backend_string</span><span class="p">,</span> <span class="n">d</span><span class="o">.</span><span class="n">reason</span><span class="p">)</span> <span class="k">for</span> <span class="n">_</span><span class="p">,</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">results</span> <span class="k">if</span> <span class="ow">not</span> <span class="n">d</span><span class="o">.</span><span class="n">found</span>
+</span><span data-line="584">    <span class="p">)</span>
+</span><span data-line="585">    <span class="k">if</span> <span class="n">failure</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+</span><span data-line="586">        <span class="n">findings</span><span class="o">.</span><span class="n">skipped</span><span class="p">[</span><span class="s2">"language-package"</span><span class="p">]</span> <span class="o">=</span> <span class="n">failure</span>
+</span><span data-line="587">    <span class="k">return</span> <span class="n">undetected</span>
+</span><span data-line="588">
+</span><span data-line="589">
+</span><span data-line="590"><span class="k">def</span><span class="w"> </span><span class="nf">_is_favoured</span><span class="p">(</span>
+</span><span data-line="591">    <span class="n">backend_string</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">ecosystems</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">Ecosystem</span><span class="p">],</span> <span class="n">language</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span>
+</span><span data-line="592"><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+</span><span data-line="593"><span class="w">    </span><span class="sd">"""Whether ``language`` makes ``backend_string``'s ecosystem the natural fit.</span>
+</span><span data-line="594">
+</span><span data-line="595"><span class="sd">    Returns:</span>
+</span><span data-line="596"><span class="sd">        bool: ``True`` for a language-package backend favoured by ``language``.</span>
+</span><span data-line="597"><span class="sd">    """</span>
+</span><span data-line="598">    <span class="n">backend</span> <span class="o">=</span> <span class="n">backend_string</span><span class="o">.</span><span class="n">partition</span><span class="p">(</span><span class="s2">":"</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+</span><span data-line="599">    <span class="k">return</span> <span class="nb">any</span><span class="p">(</span>
+</span><span data-line="600">        <span class="n">eco</span><span class="o">.</span><span class="n">backend</span> <span class="o">==</span> <span class="n">backend</span> <span class="ow">and</span> <span class="n">eco</span><span class="o">.</span><span class="n">favoured_by</span><span class="p">(</span><span class="n">language</span><span class="p">)</span> <span class="k">for</span> <span class="n">eco</span> <span class="ow">in</span> <span class="n">ecosystems</span>
+</span><span data-line="601">    <span class="p">)</span>
+</span><span data-line="602">
+</span><span data-line="603">
+</span><span data-line="604"><span class="k">def</span><span class="w"> </span><span class="nf">_lookup_language</span><span class="p">(</span>
+</span><span data-line="605">    <span class="n">findings</span><span class="p">:</span> <span class="n">_Findings</span><span class="p">,</span>
+</span><span data-line="606">    <span class="n">repository</span><span class="p">:</span> <span class="n">Repository</span><span class="p">,</span>
+</span><span data-line="607">    <span class="n">github</span><span class="p">:</span> <span class="n">GitHub</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
+</span><span data-line="608">    <span class="n">ecosystems</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">Ecosystem</span><span class="p">],</span>
+</span><span data-line="609"><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
+</span><span data-line="610"><span class="w">    </span><span class="sd">"""Read the primary language from GitHub when language packages compete for a tier.</span>
+</span><span data-line="611">
+</span><span data-line="612"><span class="sd">    The lookup is skipped when fewer than two language-package candidates were</span>
+</span><span data-line="613"><span class="sd">    found, since there is nothing to order. A GitHub failure is recorded as a</span>
+</span><span data-line="614"><span class="sd">    skipped step.</span>
+</span><span data-line="615">
+</span><span data-line="616"><span class="sd">    Returns:</span>
+</span><span data-line="617"><span class="sd">        str | None: The language, or ``None`` when not needed or unavailable.</span>
+</span><span data-line="618"><span class="sd">    """</span>
+</span><span data-line="619">    <span class="n">names</span> <span class="o">=</span> <span class="p">{</span><span class="n">eco</span><span class="o">.</span><span class="n">backend</span> <span class="k">for</span> <span class="n">eco</span> <span class="ow">in</span> <span class="n">ecosystems</span><span class="p">}</span>
+</span><span data-line="620">    <span class="n">packages</span> <span class="o">=</span> <span class="p">[</span><span class="n">b</span> <span class="k">for</span> <span class="n">b</span> <span class="ow">in</span> <span class="n">findings</span><span class="o">.</span><span class="n">backends</span> <span class="k">if</span> <span class="n">b</span><span class="o">.</span><span class="n">partition</span><span class="p">(</span><span class="s2">":"</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span> <span class="ow">in</span> <span class="n">names</span><span class="p">]</span>
+</span><span data-line="621">    <span class="k">if</span> <span class="n">github</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="nb">len</span><span class="p">(</span><span class="n">packages</span><span class="p">)</span> <span class="o">&lt;</span> <span class="n">_MIN_TIED</span><span class="p">:</span>
+</span><span data-line="622">        <span class="k">return</span> <span class="kc">None</span>
+</span><span data-line="623">    <span class="n">language</span><span class="p">,</span> <span class="n">failure</span> <span class="o">=</span> <span class="n">_primary_language</span><span class="p">(</span><span class="n">repository</span><span class="p">,</span> <span class="n">github</span><span class="p">)</span>
+</span><span data-line="624">    <span class="k">if</span> <span class="n">failure</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+</span><span data-line="625">        <span class="n">_</span> <span class="o">=</span> <span class="n">findings</span><span class="o">.</span><span class="n">skipped</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="s2">"language-package"</span><span class="p">,</span> <span class="n">failure</span><span class="p">)</span>
+</span><span data-line="626">    <span class="k">return</span> <span class="n">language</span>
+</span><span data-line="627">
+</span><span data-line="628">
+</span><span data-line="629"><span class="k">def</span><span class="w"> </span><span class="nf">_rank</span><span class="p">(</span>
+</span><span data-line="630">    <span class="n">backends</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]],</span>
+</span><span data-line="631">    <span class="n">target</span><span class="p">:</span> <span class="n">Platform</span><span class="p">,</span>
+</span><span data-line="632">    <span class="n">ecosystems</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">Ecosystem</span><span class="p">],</span>
+</span><span data-line="633">    <span class="n">language</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
+</span><span data-line="634">    <span class="n">short_names</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">],</span>
+</span><span data-line="635"><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="n">Candidate</span><span class="p">,</span> <span class="o">...</span><span class="p">],</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">Exclusion</span><span class="p">,</span> <span class="o">...</span><span class="p">]]:</span>
+</span><span data-line="636"><span class="w">    </span><span class="sd">"""Tier, flag and sort the backends, dropping those unusable on ``target``.</span>
+</span><span data-line="637">
+</span><span data-line="638"><span class="sd">    A backend in ``short_names`` is installed by its registry short name, so</span>
+</span><span data-line="639"><span class="sd">    its registry options apply, and says so in its reasons.</span>
+</span><span data-line="640">
+</span><span data-line="641"><span class="sd">    Within a tier, the primary language's backend comes first and the rest</span>
+</span><span data-line="642"><span class="sd">    follow alphabetically by backend string, so the order is deterministic.</span>
+</span><span data-line="643">
+</span><span data-line="644"><span class="sd">    Returns:</span>
+</span><span data-line="645"><span class="sd">        tuple[tuple[Candidate, ...], tuple[Exclusion, ...]]: The candidates,</span>
+</span><span data-line="646"><span class="sd">            best first, and the exclusions.</span>
+</span><span data-line="647"><span class="sd">    """</span>
+</span><span data-line="648">    <span class="n">candidates</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">Candidate</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+</span><span data-line="649">    <span class="n">exclusions</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">Exclusion</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+</span><span data-line="650">    <span class="k">for</span> <span class="n">backend</span><span class="p">,</span> <span class="n">found_reasons</span> <span class="ow">in</span> <span class="n">backends</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+</span><span data-line="651">        <span class="n">reasons</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">found_reasons</span><span class="p">)</span>
+</span><span data-line="652">        <span class="k">if</span> <span class="n">_is_favoured</span><span class="p">(</span><span class="n">backend</span><span class="p">,</span> <span class="n">ecosystems</span><span class="p">,</span> <span class="n">language</span><span class="p">):</span>
+</span><span data-line="653">            <span class="n">reasons</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">language</span><span class="si">}</span><span class="s2"> is the repository's primary language"</span><span class="p">)</span>
+</span><span data-line="654">        <span class="n">name</span> <span class="o">=</span> <span class="n">short_names</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">backend</span><span class="p">)</span>
+</span><span data-line="655">        <span class="k">if</span> <span class="n">name</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+</span><span data-line="656">            <span class="n">reasons</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">_SHORT_NAME_REASON</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">name</span><span class="p">))</span>
+</span><span data-line="657">        <span class="n">candidate</span> <span class="o">=</span> <span class="n">_candidate</span><span class="p">(</span>
+</span><span data-line="658">            <span class="n">backend</span><span class="p">,</span> <span class="n">reasons</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">windows_target</span><span class="o">=</span><span class="n">target</span><span class="o">.</span><span class="n">os</span> <span class="o">==</span> <span class="s2">"windows"</span>
+</span><span data-line="659">        <span class="p">)</span>
+</span><span data-line="660">        <span class="n">why_not</span> <span class="o">=</span> <span class="n">_unusable_reason</span><span class="p">(</span><span class="n">candidate</span><span class="p">,</span> <span class="n">target</span><span class="p">)</span>
+</span><span data-line="661">        <span class="k">if</span> <span class="n">why_not</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+</span><span data-line="662">            <span class="n">candidates</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">candidate</span><span class="p">)</span>
+</span><span data-line="663">        <span class="k">else</span><span class="p">:</span>
+</span><span data-line="664">            <span class="n">exclusions</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">Exclusion</span><span class="p">(</span><span class="n">backend</span><span class="p">,</span> <span class="n">why_not</span><span class="p">))</span>
+</span><span data-line="665">    <span class="n">candidates</span><span class="o">.</span><span class="n">sort</span><span class="p">(</span>
+</span><span data-line="666">        <span class="n">key</span><span class="o">=</span><span class="k">lambda</span> <span class="n">c</span><span class="p">:</span> <span class="p">(</span>
+</span><span data-line="667">            <span class="n">c</span><span class="o">.</span><span class="n">tier</span><span class="p">,</span>
+</span><span data-line="668">            <span class="ow">not</span> <span class="n">_is_favoured</span><span class="p">(</span><span class="n">c</span><span class="o">.</span><span class="n">backend_string</span><span class="p">,</span> <span class="n">ecosystems</span><span class="p">,</span> <span class="n">language</span><span class="p">),</span>
+</span><span data-line="669">            <span class="n">c</span><span class="o">.</span><span class="n">backend_string</span><span class="p">,</span>
+</span><span data-line="670">        <span class="p">)</span>
+</span><span data-line="671">    <span class="p">)</span>
+</span><span data-line="672">    <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">candidates</span><span class="p">),</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">exclusions</span><span class="p">)</span>
+</span><span data-line="673">
+</span><span data-line="674">
+</span><span data-line="675"><span class="k">class</span><span class="w"> </span><span class="nc">_Gathered</span><span class="p">(</span><span class="n">NamedTuple</span><span class="p">):</span>
+</span><span data-line="676"><span class="w">    </span><span class="sd">"""The outcome of the ladder's steps.</span>
+</span><span data-line="677">
+</span><span data-line="678"><span class="sd">    Attributes:</span>
+</span><span data-line="679"><span class="sd">        candidates: The ranked candidates, best first.</span>
+</span><span data-line="680"><span class="sd">        exclusions: The backend strings considered and left out.</span>
+</span><span data-line="681"><span class="sd">        skipped: The failure of each skipped step, by step name.</span>
+</span><span data-line="682"><span class="sd">        notes: Remarks from detectors about their own search.</span>
+</span><span data-line="683"><span class="sd">    """</span>
+</span><span data-line="684">
+</span><span data-line="685">    <span class="n">candidates</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">Candidate</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span>
+</span><span data-line="686">    <span class="n">exclusions</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">Exclusion</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span>
+</span><span data-line="687">    <span class="n">skipped</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">MibareError</span><span class="p">]</span>
+</span><span data-line="688">    <span class="n">notes</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span> <span class="o">=</span> <span class="p">()</span>
+</span><span data-line="689">
+</span><span data-line="690">
+</span><span data-line="691"><span class="k">def</span><span class="w"> </span><span class="nf">_require_existing</span><span class="p">(</span><span class="n">repository</span><span class="p">:</span> <span class="n">Repository</span><span class="p">,</span> <span class="n">github</span><span class="p">:</span> <span class="n">GitHub</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+</span><span data-line="692"><span class="w">    </span><span class="sd">"""Fail when GitHub definitely has no such repository.</span>
+</span><span data-line="693">
+</span><span data-line="694"><span class="sd">    A GitHub failure leaves the question open, so the offline candidates are</span>
+</span><span data-line="695"><span class="sd">    kept and the later steps record their own failures.</span>
+</span><span data-line="696">
+</span><span data-line="697"><span class="sd">    Raises:</span>
+</span><span data-line="698"><span class="sd">        RepositoryNotFoundError: If GitHub answers 404 for the repository.</span>
+</span><span data-line="699"><span class="sd">    """</span>
+</span><span data-line="700">    <span class="k">try</span><span class="p">:</span>
+</span><span data-line="701">        <span class="n">exists</span> <span class="o">=</span> <span class="n">github</span><span class="o">.</span><span class="n">repository_exists</span><span class="p">(</span><span class="n">repository</span><span class="p">)</span>
+</span><span data-line="702">    <span class="k">except</span> <span class="n">GitHubUnavailableError</span><span class="p">:</span>
+</span><span data-line="703">        <span class="k">return</span>
+</span><span data-line="704">    <span class="k">if</span> <span class="ow">not</span> <span class="n">exists</span><span class="p">:</span>
+</span><span data-line="705">        <span class="n">message</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">"repository </span><span class="si">{</span><span class="n">repository</span><span class="o">.</span><span class="n">shorthand</span><span class="si">}</span><span class="s2"> was not found on GitHub."</span>
+</span><span data-line="706">        <span class="k">raise</span> <span class="n">RepositoryNotFoundError</span><span class="p">(</span><span class="n">message</span><span class="p">)</span>
+</span><span data-line="707">
+</span><span data-line="708">
+</span><span data-line="709"><span class="k">def</span><span class="w"> </span><span class="nf">_gather</span><span class="p">(</span>
+</span><span data-line="710">    <span class="n">repository</span><span class="p">:</span> <span class="n">Repository</span><span class="p">,</span>
+</span><span data-line="711">    <span class="n">mise</span><span class="p">:</span> <span class="n">Mise</span><span class="p">,</span>
+</span><span data-line="712">    <span class="n">github</span><span class="p">:</span> <span class="n">GitHub</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
+</span><span data-line="713">    <span class="n">target</span><span class="p">:</span> <span class="n">Platform</span><span class="p">,</span>
+</span><span data-line="714">    <span class="n">ecosystems</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">Ecosystem</span><span class="p">],</span>
+</span><span data-line="715"><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">_Gathered</span><span class="p">:</span>
+</span><span data-line="716"><span class="w">    </span><span class="sd">"""Run the ladder's steps and rank what they found.</span>
+</span><span data-line="717">
+</span><span data-line="718"><span class="sd">    Returns:</span>
+</span><span data-line="719"><span class="sd">        _Gathered: The candidates, the exclusions and the skipped steps.</span>
+</span><span data-line="720"><span class="sd">    """</span>
+</span><span data-line="721">    <span class="n">findings</span> <span class="o">=</span> <span class="n">_found_backends</span><span class="p">(</span><span class="n">repository</span><span class="p">,</span> <span class="n">mise</span><span class="p">,</span> <span class="n">target</span><span class="p">)</span>
+</span><span data-line="722">    <span class="k">if</span> <span class="n">github</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+</span><span data-line="723">        <span class="n">_require_existing</span><span class="p">(</span><span class="n">repository</span><span class="p">,</span> <span class="n">github</span><span class="p">)</span>
+</span><span data-line="724">    <span class="n">_add_github</span><span class="p">(</span><span class="n">findings</span><span class="p">,</span> <span class="n">repository</span><span class="p">,</span> <span class="n">mise</span><span class="p">,</span> <span class="n">github</span><span class="p">,</span> <span class="n">target</span><span class="p">)</span>
+</span><span data-line="725">    <span class="n">undetected</span> <span class="o">=</span> <span class="n">_add_language_packages</span><span class="p">(</span>
+</span><span data-line="726">        <span class="n">findings</span><span class="p">,</span> <span class="n">repository</span><span class="p">,</span> <span class="n">github</span><span class="p">,</span> <span class="n">target</span><span class="p">,</span> <span class="n">ecosystems</span>
+</span><span data-line="727">    <span class="p">)</span>
+</span><span data-line="728">    <span class="n">language</span> <span class="o">=</span> <span class="n">_lookup_language</span><span class="p">(</span><span class="n">findings</span><span class="p">,</span> <span class="n">repository</span><span class="p">,</span> <span class="n">github</span><span class="p">,</span> <span class="n">ecosystems</span><span class="p">)</span>
+</span><span data-line="729">    <span class="n">candidates</span><span class="p">,</span> <span class="n">unusable</span> <span class="o">=</span> <span class="n">_rank</span><span class="p">(</span>
+</span><span data-line="730">        <span class="n">findings</span><span class="o">.</span><span class="n">backends</span><span class="p">,</span> <span class="n">target</span><span class="p">,</span> <span class="n">ecosystems</span><span class="p">,</span> <span class="n">language</span><span class="p">,</span> <span class="n">findings</span><span class="o">.</span><span class="n">short_names</span>
+</span><span data-line="731">    <span class="p">)</span>
+</span><span data-line="732">    <span class="n">exclusions</span> <span class="o">=</span> <span class="p">(</span><span class="o">*</span><span class="n">findings</span><span class="o">.</span><span class="n">exclusions</span><span class="p">,</span> <span class="o">*</span><span class="n">unusable</span><span class="p">,</span> <span class="o">*</span><span class="n">undetected</span><span class="p">)</span>
+</span><span data-line="733">    <span class="k">return</span> <span class="n">_Gathered</span><span class="p">(</span><span class="n">candidates</span><span class="p">,</span> <span class="n">exclusions</span><span class="p">,</span> <span class="n">findings</span><span class="o">.</span><span class="n">skipped</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">findings</span><span class="o">.</span><span class="n">notes</span><span class="p">))</span>
+</span><span data-line="734">
+</span><span data-line="735">
+</span><span data-line="736"><span class="k">def</span><span class="w"> </span><span class="nf">_notes</span><span class="p">(</span>
+</span><span data-line="737">    <span class="n">target</span><span class="p">:</span> <span class="n">Platform</span><span class="p">,</span> <span class="n">host</span><span class="p">:</span> <span class="n">Platform</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span> <span class="n">gathered</span><span class="p">:</span> <span class="n">_Gathered</span>
+</span><span data-line="738"><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="o">...</span><span class="p">]:</span>
+</span><span data-line="739"><span class="w">    </span><span class="sd">"""Collect the platform, skipped-step and search notes.</span>
+</span><span data-line="740">
+</span><span data-line="741"><span class="sd">    Returns:</span>
+</span><span data-line="742"><span class="sd">        tuple[str, ...]: The notes, in that order.</span>
+</span><span data-line="743"><span class="sd">    """</span>
+</span><span data-line="744">    <span class="n">skipped</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span>
+</span><span data-line="745">        <span class="sa">f</span><span class="s2">"Skipped the </span><span class="si">{</span><span class="n">step</span><span class="si">}</span><span class="s2"> step: </span><span class="si">{</span><span class="n">why</span><span class="si">}</span><span class="s2">"</span> <span class="k">for</span> <span class="n">step</span><span class="p">,</span> <span class="n">why</span> <span class="ow">in</span> <span class="n">gathered</span><span class="o">.</span><span class="n">skipped</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
+</span><span data-line="746">    <span class="p">)</span>
+</span><span data-line="747">    <span class="k">return</span> <span class="p">(</span><span class="o">*</span><span class="n">_platform_notes</span><span class="p">(</span><span class="n">target</span><span class="p">,</span> <span class="n">host</span><span class="p">),</span> <span class="o">*</span><span class="n">skipped</span><span class="p">,</span> <span class="o">*</span><span class="n">gathered</span><span class="o">.</span><span class="n">notes</span><span class="p">)</span>
+</span><span data-line="748">
+</span><span data-line="749">
+</span><span data-line="750"><span class="k">def</span><span class="w"> </span><span class="nf">_try_host_platform</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="n">Platform</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
+</span><span data-line="751"><span class="w">    </span><span class="sd">"""Detect the host platform for the host-versus-target note.</span>
+</span><span data-line="752">
+</span><span data-line="753"><span class="sd">    Returns:</span>
+</span><span data-line="754"><span class="sd">        Platform | None: The host, or ``None`` when it cannot be detected.</span>
+</span><span data-line="755"><span class="sd">    """</span>
+</span><span data-line="756">    <span class="k">try</span><span class="p">:</span>
+</span><span data-line="757">        <span class="k">return</span> <span class="n">host_platform</span><span class="p">()</span>
+</span><span data-line="758">    <span class="k">except</span> <span class="n">InvalidPlatformError</span><span class="p">:</span>
+</span><span data-line="759">        <span class="k">return</span> <span class="kc">None</span>
+</span><span data-line="760">
+</span><span data-line="761">
+<div class="viewcode-block" id="resolve">
+<a class="viewcode-back" href="../../../modules.html#mibare.core.resolve.resolve">[docs]</a>
+</span><span data-line="762"><span class="k">def</span><span class="w"> </span><span class="nf">resolve</span><span class="p">(</span>
+</span><span data-line="763">    <span class="n">repository</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+</span><span data-line="764">    <span class="n">mise</span><span class="p">:</span> <span class="n">Mise</span><span class="p">,</span>
+</span><span data-line="765">    <span class="n">platform</span><span class="p">:</span> <span class="n">Platform</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span data-line="766">    <span class="n">github</span><span class="p">:</span> <span class="n">GitHub</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span data-line="767">    <span class="n">ecosystems</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">Ecosystem</span><span class="p">]</span> <span class="o">=</span> <span class="n">ECOSYSTEMS</span><span class="p">,</span>
+</span><span data-line="768"><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Resolution</span><span class="p">:</span>
+</span><span data-line="769"><span class="w">    </span><span class="sd">"""Resolve ``repository`` to the mise backends that can install it.</span>
+</span><span data-line="770">
+</span><span data-line="771"><span class="sd">    Args:</span>
+</span><span data-line="772"><span class="sd">        repository: A GitHub URL or ``owner/repo`` shorthand.</span>
+</span><span data-line="773"><span class="sd">        mise: The mise adapter.</span>
+</span><span data-line="774"><span class="sd">        platform: The target platform; defaults to the host.</span>
+</span><span data-line="775"><span class="sd">        github: The GitHub adapter. Without one the steps that need the GitHub</span>
+</span><span data-line="776"><span class="sd">            API are left out, so ``resolve()`` stays offline.</span>
+</span><span data-line="777"><span class="sd">        ecosystems: The language-package ecosystems to detect; defaults to</span>
+</span><span data-line="778"><span class="sd">            the registered ones.</span>
+</span><span data-line="779">
+</span><span data-line="780"><span class="sd">    Returns:</span>
+</span><span data-line="781"><span class="sd">        Resolution: The ranked candidates; the first is the recommendation.</span>
+</span><span data-line="782"><span class="sd">            When GitHub is unreachable or a mise probe fails, the other</span>
+</span><span data-line="783"><span class="sd">            candidates are kept and the skipped steps are named in ``notes``.</span>
+</span><span data-line="784">
+</span><span data-line="785"><span class="sd">        The first failure (``GitHubUnavailableError`` or ``MiseError``) is</span>
+</span><span data-line="786"><span class="sd">        raised instead when a step failed and no step found a candidate, so</span>
+</span><span data-line="787"><span class="sd">        the answer does not read as "no backend".</span>
+</span><span data-line="788">
+</span><span data-line="789"><span class="sd">        An ``InvalidPlatformError`` is raised when no ``platform`` is given</span>
+</span><span data-line="790"><span class="sd">        and the host is not a supported platform; an explicit ``platform``</span>
+</span><span data-line="791"><span class="sd">        needs no host detection.</span>
+</span><span data-line="792"><span class="sd">    """</span>
+</span><span data-line="793">    <span class="n">parsed</span> <span class="o">=</span> <span class="n">parse_repository</span><span class="p">(</span><span class="n">repository</span><span class="p">)</span>
+</span><span data-line="794">    <span class="k">if</span> <span class="n">platform</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+</span><span data-line="795">        <span class="n">target</span> <span class="o">=</span> <span class="n">host_platform</span><span class="p">()</span>
+</span><span data-line="796">        <span class="n">host</span><span class="p">:</span> <span class="n">Platform</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="n">target</span>
+</span><span data-line="797">    <span class="k">else</span><span class="p">:</span>
+</span><span data-line="798">        <span class="n">host</span><span class="p">,</span> <span class="n">target</span> <span class="o">=</span> <span class="n">_try_host_platform</span><span class="p">(),</span> <span class="n">platform</span>
+</span><span data-line="799">    <span class="n">mise_version</span> <span class="o">=</span> <span class="n">mise</span><span class="o">.</span><span class="n">version</span><span class="p">()</span>
+</span><span data-line="800">    <span class="n">gathered</span> <span class="o">=</span> <span class="n">_gather</span><span class="p">(</span><span class="n">parsed</span><span class="p">,</span> <span class="n">mise</span><span class="p">,</span> <span class="n">github</span><span class="p">,</span> <span class="n">target</span><span class="p">,</span> <span class="n">ecosystems</span><span class="p">)</span>
+</span><span data-line="801">    <span class="n">candidates</span><span class="p">,</span> <span class="n">exclusions</span><span class="p">,</span> <span class="n">skipped</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">gathered</span>
+</span><span data-line="802">    <span class="k">if</span> <span class="ow">not</span> <span class="n">candidates</span> <span class="ow">and</span> <span class="n">skipped</span><span class="p">:</span>
+</span><span data-line="803">        <span class="n">failure</span> <span class="o">=</span> <span class="nb">next</span><span class="p">(</span><span class="nb">iter</span><span class="p">(</span><span class="n">skipped</span><span class="o">.</span><span class="n">values</span><span class="p">()))</span>
+</span><span data-line="804">        <span class="k">raise</span> <span class="n">failure</span>
+</span><span data-line="805">    <span class="n">notes</span> <span class="o">=</span> <span class="n">_notes</span><span class="p">(</span><span class="n">target</span><span class="p">,</span> <span class="n">host</span><span class="p">,</span> <span class="n">gathered</span><span class="p">)</span>
+</span><span data-line="806">    <span class="k">return</span> <span class="n">Resolution</span><span class="p">(</span><span class="n">parsed</span><span class="p">,</span> <span class="n">mise_version</span><span class="p">,</span> <span class="n">candidates</span><span class="p">,</span> <span class="n">exclusions</span><span class="p">,</span> <span class="n">target</span><span class="p">,</span> <span class="n">notes</span><span class="p">)</span></div>
+
+</span></pre></div>
+        </article><button class="back-to-top" type="button">
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+    <path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8v12z"></path>
+  </svg>
+  <span>Back to top</span>
+</button><div class="navigation flex print:hidden"></div></div>
+    </div>
+  </main>
+</div>
+<footer class="sy-foot">
+  <div class="sy-foot-inner sy-container mx-auto">
+    <div class="sy-foot-reserved md:flex justify-between items-center">
+      <div class="sy-foot-copyright"><p>2026, Hasan Sezer Taşan</p>
+  
+  <p>
+    Made with
+    
+    <a href="https://www.sphinx-doc.org/">Sphinx</a> and
+    
+    <a href="https://shibuya.lepture.com">Shibuya theme</a>.
+  </p>
+</div>
+      <div class="sy-foot-socials">
+  <a href="https://github.com/hasansezertasan/mibare" aria-label="GitHub">
+    <iconify-icon icon="simple-icons:github"></iconify-icon>
+  </a></div>
+    </div>
+  </div>
+</footer>
+      <script src="../../../_static/documentation_options.js?v=5929fcd5"></script>
+      <script src="../../../_static/doctools.js?v=9bcbadda"></script>
+      <script src="../../../_static/sphinx_highlight.js?v=dc90522c"></script>
+      <script src="../../../_static/clipboard.min.js?v=a7894cd8"></script>
+      <script src="../../../_static/copybutton.js?v=f281be69"></script>
+      <script>let toggleHintShow = 'Click to show';</script>
+      <script>let toggleHintHide = 'Click to hide';</script>
+      <script>let toggleOpenOnPrint = 'true';</script>
+      <script src="../../../_static/togglebutton.js?v=b8b12719"></script>
+      <script src="../../../_static/design-tabs.js?v=f930bc37"></script>
+      <script>var togglebuttonSelector = '.toggle, .admonition.dropdown';</script>
+      <script src="../../../_static/shibuya.js?v=50760d75"></script>
+      <script>var togglebuttonSelector = '.toggle, .admonition.dropdown';</script></body>
+</html>
