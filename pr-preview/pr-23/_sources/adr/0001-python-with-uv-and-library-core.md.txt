@@ -1,0 +1,3 @@
+# Python with uv, library core behind the CLI
+
+mibare is a Python project managed with `uv` and scaffolded from the maintainer's `copier-pyproject` Copier template (`hasansezertasan/copier-pyproject`), not a plain `uv init`, so project layout, tooling and release setup follow that template. The resolution logic lives in an importable library and the CLI (`mibare <repo>`) is a thin wrapper, so a library or service front end can be added later without a rewrite. We chose Python over Go or Rust, which would ship as a single binary that mise installs through `github:` or `aqua:`, because it matches the maintainer's existing tooling; mise users can still install it through the `pypi:` backend.
