@@ -228,7 +228,11 @@ jobs:
       fail-fast: false
       matrix:
         include:
+<<<<<<< before updating
           - {os: ubuntu-latest, tox_args: "-e 3.14"}
+=======
+          - {os: ubuntu-latest, tox_args: "-e 3.14,3.13,3.12,3.11"}
+>>>>>>> after updating
           - {os: macos-latest, tox_args: "-e py"}
           - {os: windows-latest, tox_args: "-e py"}
     runs-on: ${{ matrix.os }}
@@ -315,7 +319,11 @@ jobs:
       fail-fast: false
       matrix:
         include:
+<<<<<<< before updating
           - {os: ubuntu-latest, tox_args: "-e 3.14"}
+=======
+          - {os: ubuntu-latest, tox_args: "-e 3.14,3.13,3.12,3.11"}
+>>>>>>> after updating
           - {os: macos-latest, tox_args: "-e py"}
           - {os: windows-latest, tox_args: "-e py"}
     runs-on: ${{ matrix.os }}

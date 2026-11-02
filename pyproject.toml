@@ -31,6 +31,12 @@ classifiers = [
   "Operating System :: OS Independent",
   "Programming Language :: Python :: 3 :: Only",
   "Programming Language :: Python :: 3",
+<<<<<<< before updating
+=======
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+>>>>>>> after updating
   "Programming Language :: Python :: 3.14",
   "Programming Language :: Python :: Implementation :: CPython",
   "Programming Language :: Python",
@@ -38,10 +44,20 @@ classifiers = [
   "Topic :: Utilities",
   "Typing :: Typed",
 ]
+<<<<<<< before updating
 requires-python = ">=3.14"
 # Runtime deps live here, not in an optional extra: ``__main__`` imports typer
 # unconditionally, so ``pip install mibare`` must pull it or the binary fails
 # at launch.
+=======
+requires-python = ">=3.11"
+# The enabled component's runtime deps live here, not in an optional extra: a
+# selected component is chosen at generation time and ``__main__`` imports it
+# unconditionally (see the CLI > GUI > TUI > web > MCP > worker precedence
+# there), so ``pip install mibare`` must pull them or the binary
+# fails at launch. Same for pydantic-settings, which ``core.config`` imports
+# unconditionally when enabled.
+>>>>>>> after updating
 dependencies = [
   "typer>=0.20.0",
 ]
@@ -115,9 +131,15 @@ test = [
 docs = [
   "sphinx==8.1.3",
   "shibuya==2026.7.12",
+<<<<<<< before updating
   "sphinx-autobuild==2024.10.3",
   "sphinx-copybutton==0.5.2",
   "sphinx-design==0.6.1",
+=======
+  "sphinx-autobuild==2025.8.25",
+  "sphinx-copybutton==0.5.2",
+  "sphinx-design==0.7.0",
+>>>>>>> after updating
   "sphinx-togglebutton==0.4.5",
   "sphinx-paramlinks==0.6.0",
   "auto-pytabs[sphinx]==0.5.0",
@@ -365,7 +387,11 @@ output-format = "full"
 preview = true
 show-fixes = true
 src = ["src", "tests", "docs/examples"]
+<<<<<<< before updating
 target-version = "py314"
+=======
+target-version = "py311"
+>>>>>>> after updating
 unsafe-fixes = true
 
 
@@ -446,14 +472,22 @@ parenthesize-tuple-in-subscript = true
 [tool.mypy]
 files = ["src", "docs/examples"]
 pretty = true
+<<<<<<< before updating
 python_version = "3.14"
+=======
+python_version = "3.11"
+>>>>>>> after updating
 strict = true
 
 
 [tool.basedpyright]
 exclude = [".venv"]
 include = ["src/mibare", "docs/examples"]
+<<<<<<< before updating
 pythonVersion = "3.14"
+=======
+pythonVersion = "3.11"
+>>>>>>> after updating
 venv = ".venv"
 # venvPath is the directory *containing* the venv, not the venv itself; ".venv"
 # here would make basedpyright look for ".venv/.venv". Use "." so both the venv
@@ -467,7 +501,11 @@ respect-ignore-files = false
 
 
 [tool.ty.environment]
+<<<<<<< before updating
 python-version = "3.14"
+=======
+python-version = "3.11"
+>>>>>>> after updating
 
 
 [tool.ty.terminal]
@@ -475,7 +513,11 @@ error-on-warning = true
 
 
 [tool.pyrefly]
+<<<<<<< before updating
 python-version = "3.14"
+=======
+python-version = "3.11"
+>>>>>>> after updating
 project-includes = ["src", "docs/examples"]
 
 [tool.pylint.main]
@@ -544,6 +586,12 @@ env_list = [
   "docs-doctest",
   "cli",
   "3.14",
+<<<<<<< before updating
+=======
+  "3.13",
+  "3.12",
+  "3.11",
+>>>>>>> after updating
 ]
 requires = ["tox>=4"]
 
@@ -582,7 +630,11 @@ runner = "uv-venv-lock-runner"
 
 
 [tool.tox.env.style]
+<<<<<<< before updating
 base_python = ["3.14"]
+=======
+base_python = ["3.11"]
+>>>>>>> after updating
 commands = [
   [
     "ruff",
@@ -598,6 +650,14 @@ commands = [
   [
     "mypy",
     "--python-version",
+<<<<<<< before updating
+=======
+    "3.11",
+  ],
+  [
+    "mypy",
+    "--python-version",
+>>>>>>> after updating
     "3.14",
   ],
   # Style runs once on Linux, so explicitly sweep platform-gated branches that
