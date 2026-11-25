@@ -32,6 +32,7 @@ classifiers = [
   "Programming Language :: Python :: 3 :: Only",
   "Programming Language :: Python :: 3",
   "Programming Language :: Python :: 3.14",
+  "Programming Language :: Python :: 3.15",
   "Programming Language :: Python :: Implementation :: CPython",
   "Programming Language :: Python",
   "Topic :: Software Development",
@@ -543,6 +544,7 @@ env_list = [
   # so run them in the default CI ``tox run`` invocation.
   "docs-doctest",
   "cli",
+  "3.15",
   "3.14",
 ]
 requires = ["tox>=4"]
@@ -598,7 +600,16 @@ commands = [
   [
     "mypy",
     "--python-version",
+<<<<<<< before updating
     "3.14",
+=======
+    "3.11",
+  ],
+  [
+    "mypy",
+    "--python-version",
+    "3.15",
+>>>>>>> after updating
   ],
   # Style runs once on Linux, so explicitly sweep platform-gated branches that
   # mypy would otherwise prune as unreachable on the host platform.
